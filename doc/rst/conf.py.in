@@ -4,11 +4,12 @@
 # Refer to http://www.sphinx-doc.org/en/master/usage/configuration.html for details.
 #
 import sys, os
+import glob
 sys.path.append(os.path.abspath('_extensions'))
 
 # -- General configuration -----------------------------------------------------
 needs_sphinx = '1.8'
-extensions = ['sphinx.ext.mathjax', 'jinja', 'youtube']
+extensions = ['sphinx.ext.mathjax', 'sphinx.ext.autosectionlabel', 'jinja', 'youtube', 'sphinx_panels', 'sphinx_togglebutton', 'sphinx_copybutton']
 source_encoding = 'utf-8-sig'
 source_suffix = '.rst'
 master_doc = 'index'
@@ -19,6 +20,12 @@ smartquotes_action = 'qe'
 # default language to highlight source code
 highlight_language = 'bash'
 pygments_style = 'sphinx'
+autosectionlabel_prefix_document = True
+togglebutton_hint = "Click to show example script"
+
+# Disable sphinx_panels extension for manpage build
+if tags.has("nosphinxpanels"):
+    extensions.remove("sphinx_panels")
 
 # -- Project configuration ------------------------------------------------
 project = 'GMT'
@@ -27,9 +34,6 @@ copyright = "@GMT_VERSION_YEAR@, The GMT Team."
 version = '@GMT_PACKAGE_VERSION_MAJOR@.@GMT_PACKAGE_VERSION_MINOR@'
 # The full version shown in the page title
 release = '@GMT_PACKAGE_VERSION@'
-# Make the "Edit on GitHub" button link to the correct branch
-# Default to master branch if Azure Pipelines environmental variable BUILD_SOURCEBRANCHNAME is not defined
-github_version = os.getenv("BUILD_SOURCEBRANCHNAME", 'master')
 
 # -- Options for HTML output ---------------------------------------------------
 html_theme = 'rtd'
@@ -62,9 +66,11 @@ html_context = {
     "display_github": True,
     "github_user": "GenericMappingTools",
     "github_repo": "gmt",
-    "github_version": github_version,
+    "github_version": "master",
     "theme_vcs_pageview_mode": "edit",
-    "conf_py_path": "/doc/rst/source/"
+    "conf_py_path": "/doc/rst/source/",
+    # Enable versions switch on GitHub Actions (`true`).
+    "enable_versions_switch": True if os.getenv("GITHUB_ACTIONS") else False,
 }
 # favicon of the docs
 html_favicon = "_static/favicon.png"
@@ -80,6 +86,15 @@ from sphinx.builders.html import StandaloneHTMLBuilder
 StandaloneHTMLBuilder.supported_image_types = [
   'image/gif', 'image/jpeg', 'image/png', 'image/svg+xml'
 ]
+
+# context for the jinja extension
+## Count number of examples (.rst) in the source/gallery directory
+no_of_examples = len(glob.glob("source/gallery/ex*.rst"))
+jinja_contexts = {
+    'jinja_ctx': {
+        'no_of_examples': no_of_examples,
+    }
+}
 
 # -- Options for manual page output --------------------------------------------
 # One entry per manual page. List of tuples

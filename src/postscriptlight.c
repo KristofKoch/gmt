@@ -1,6 +1,6 @@
 /*--------------------------------------------------------------------
  *
- *	Copyright (c) 2009-2020 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
+ *	Copyright (c) 2009-2021 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
  *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU Lesser General Public License as published by
@@ -200,13 +200,6 @@ static inline uint32_t inline_bswap32 (uint32_t x) {
 #	define bswap32 inline_bswap32
 #endif /* HAVE___BUILTIN_BSWAP32 */
 
-/* Macro for exit since this should be returned when called from Matlab */
-#ifdef DO_NOT_EXIT
-#define PSL_exit(code) return(code)
-#else
-#define PSL_exit(code) exit(code)
-#endif
-
 #define PSL_M_unused(x) (void)(x)
 
 /* ISO Font encodings.  Ensure that the order of PSL_ISO_names matches order of includes below */
@@ -226,9 +219,11 @@ static char *PSL_ISO_name[] = {
 	"PSL_ISO-8859-8",
 	"PSL_ISO-8859-9",
 	"PSL_ISO-8859-10",
+	"PSL_ISO-8859-11",
 	"PSL_ISO-8859-13",
 	"PSL_ISO-8859-14",
 	"PSL_ISO-8859-15",
+	"PSL_ISO-8859-16",
 	NULL
 };
 
@@ -247,9 +242,11 @@ static char *PSL_ISO_encoding[] = {
 #include "PSL_ISO-8859-8.h"
 #include "PSL_ISO-8859-9.h"
 #include "PSL_ISO-8859-10.h"
+#include "PSL_ISO-8859-11.h"
 #include "PSL_ISO-8859-13.h"
 #include "PSL_ISO-8859-14.h"
 #include "PSL_ISO-8859-15.h"
+#include "PSL_ISO-8859-16.h"
 NULL
 };
 
@@ -340,6 +337,7 @@ static struct PSL_FONT PSL_standard_fonts[PSL_N_STANDARD_FONTS] = {
 #define PSL_SUB_DOWN		0.25	/* Baseline shift down in font size for subscript */
 #define PSL_SUP_UP_LC		0.35	/* Baseline shift up in font size for superscript after lowercase letter */
 #define PSL_SUP_UP_UC		0.35	/* Baseline shift up in font size for superscript after uppercase letter */
+#define PSL_ASCII_ES		27		/* ASCII code for escape (used to prevent +? strings in plain text from being seen as modifiers) */
 #if 0
 /* These are potential revisions to some of the settings above but remains to be tested */
 #define PSL_SUBSUP_SIZE		0.58	/* Relative size of sub/sup-script to normal size */
@@ -375,6 +373,7 @@ static struct PSL_FONT PSL_standard_fonts[PSL_N_STANDARD_FONTS] = {
 #define PSL_ONE_SPACE		1
 #define PSL_COMPOSITE_1		8
 #define PSL_COMPOSITE_2		16
+#define PSL_COMPOSITE_2_FNT		64
 #define PSL_SYMBOL_FONT		12
 #define PSL_CHUNK		2048
 
@@ -422,7 +421,15 @@ typedef struct {
 	unsigned char *buffer;
 } *psl_byte_stream_t;
 
-/* These are used when the PDF pdfmark extension for transparency is used. */
+/* These are used when the PDF pdfmark or Ghostscript extensions for transparency is used:
+ * Adobe:       https://www.adobe.com/content/dam/acom/en/devnet/acrobat/pdfs/pdfmarkReference_v9.pdf
+ * Ghostscript: https://www.ghostscript.com/doc/current/Language.htm#Transparency
+ *
+ * From gs 9.53 their transparency model takes two transparencies (stroke and fill) while before
+ * it only took one.  The pdfmark took two but we simply duplicated it since GMT itself only dealt
+ * with one transparency for both.  From GMT 6.2.0 we will allow these two transparencies to be set
+ * individually if the user so selects.  Note: We do not support any of the soft masks/shapes stuff.
+ */
 
 #define N_PDF_TRANSPARENCY_MODES	16
 static const char *PDF_transparency_modes[N_PDF_TRANSPARENCY_MODES] = {
@@ -724,6 +731,16 @@ static int psl_iy (struct PSL_CTRL *PSL, double y) {
 	return (PSL->internal.y0 + (int)lrint (y * PSL->internal.y2iy));
 }
 
+static double psl_ix10 (struct PSL_CTRL *PSL, double x) {
+	/* Convert user x to PS dots with 1 decimal point */
+	return (PSL->internal.x0 + 0.1 *lrint (10.0 * x * PSL->internal.x2ix));
+}
+
+static double psl_iy10 (struct PSL_CTRL *PSL, double y) {
+	/* Convert user y to PS dots with 1 decimal point */
+	return (PSL->internal.y0 + 0.1 * lrint (10.0 * y * PSL->internal.y2iy));
+}
+
 static int psl_iz (struct PSL_CTRL *PSL, double z) {
 	/* Convert user distances to PS dots */
 	return ((int)lrint (z * PSL->internal.dpu));
@@ -858,7 +875,9 @@ static int psl_shorten_path_old (struct PSL_CTRL *PSL, double *x, double *y, int
 	return (k);
 }
 
-#define N_LENGTH_THRESHOLD 100000000
+/* Addressing issue https://github.com/GenericMappingTools/gmt/issues/439 for long DCW polygons.
+   #define N_LENGTH_THRESHOLD 100000000 meant we only did new path but now we try 50000 as cutoff */
+#define N_LENGTH_THRESHOLD 50000
 static int psl_shorten_path (struct PSL_CTRL *PSL, double *x, double *y, int n, int *ix, int *iy, int mode) {
 	if (n > N_LENGTH_THRESHOLD)
 		return psl_shorten_path_old (PSL, x, y, n, ix, iy, mode);
@@ -946,11 +965,13 @@ static void psl_set_reducedpath_arrays (struct PSL_CTRL *PSL, double *x, double 
 
 	}
 
+	/* For curved lines for text placement we use 10 times the precision in the coordinates since we will
+	 * be taking derivatives to compute angles and thus need higher precision than integer PS coordinates */
 	PSL_comment (PSL, "Set concatenated coordinate arrays for line segments:\n");
 	PSL_command (PSL, "/PSL_path_x [ ");
 	for (i = k = 0; i < ntot; i++) {
 		if (!use[i]) continue;
-		PSL_command (PSL, "%d ", psl_ix (PSL, x[i]));
+		PSL_command (PSL, "%g ", psl_ix10 (PSL, x[i]));
 		k++;
 		if ((k%10) == 0) PSL_command (PSL, "\n\t");
 	}
@@ -958,7 +979,7 @@ static void psl_set_reducedpath_arrays (struct PSL_CTRL *PSL, double *x, double 
 	PSL_command (PSL, "/PSL_path_y [ ");
 	for (i = k = 0; i < ntot; i++) {
 		if (!use[i]) continue;
-		PSL_command (PSL, "%d ", psl_iy (PSL, y[i]));
+		PSL_command (PSL, "%g ", psl_iy10 (PSL, y[i]));
 		k++;
 		if ((k%10) == 0) PSL_command (PSL, "\n\t");
 	}
@@ -1042,6 +1063,7 @@ static void psl_rgb_to_hsv (double rgb[], double hsv[]) {
 	hsv[0] = 120.0 * imax + 60.0 * (rgb[(imax + 1) % 3] - rgb[(imax + 2) % 3]) / diff;
 	if (hsv[0] < 0.0) hsv[0] += 360.0;
 	if (hsv[0] > 360.0) hsv[0] -= 360.0;
+	hsv[0] /= 360.0;	/* All h,s,v values in PostScript are 0-1 range */
 }
 
 #if 0 /* Not used */
@@ -1764,15 +1786,15 @@ static char *psl_getsharepath (struct PSL_CTRL *PSL, const char *subdir, const c
 
 static int psl_place_encoding (struct PSL_CTRL *PSL, const char *encoding) {
 	/* Write the specified encoding string to file */
-	int k = 0, match = 0;
+	int k = 0, match = 0, err = 0;
 	while (PSL_ISO_name[k] && (match = strcmp (encoding, PSL_ISO_name[k])) != 0) k++;
 	if (match == 0)
 		PSL_command (PSL, "%s", PSL_ISO_encoding[k]);
 	else {
 		PSL_message (PSL, PSL_MSG_ERROR, "Fatal Error: Could not find ISO encoding %s\n", encoding);
-		PSL_exit (EXIT_FAILURE);
+		err = -1;
 	}
-	return 0;
+	return err;
 }
 
 /* psl_bulkcopy copies the given long static string (defined in PSL_strings.h)
@@ -1818,10 +1840,11 @@ static void psl_bulkcopy (struct PSL_CTRL *PSL, const char *text) {
 
 static struct PSL_WORD *psl_add_word_part (struct PSL_CTRL *PSL, char *word, int length, int fontno, double fontsize, int sub, int super, int small, int under, int space, double rgb[]) {
 	/* For flag: bits 1 and 2 give number of spaces to follow (0, 1, or 2)
-	 * bit 3 == 1 means leading TAB
-	 * bit 4 == 1 means Composite 1 character
-	 * bit 5 == 1 means Composite 2 character
-	 * bit 6 == 1 means underline word
+	 * bit 3 == 1 [4]  means leading TAB
+	 * bit 4 == 1 [8]  means Composite 1 character
+	 * bit 5 == 1 [16] means Composite 2 character
+	 * bit 6 == 1 [32] means underline word
+	 * bit 7 == 1 [64] means Composite 2 character has a different font that Composite 1 character
 	 */
 
 	int i = 0;
@@ -1878,11 +1901,47 @@ static void psl_freewords (struct PSL_WORD **word, int n_words) {
 	}
 }
 
+void psl_got_composite_fontswitch (struct PSL_CTRL *PSL, char *text) {
+	/* If a composite character is made from two different fonts then we need to flag these.
+	 * E.g., Epsilon time-derivative = @!\277@~145@~ using current and Symbol font.
+	 * Here we need to switch to symbol font for one char, from whatever font we are using.
+	 * We look for such cases and count the occurrences, plus replace the font changing code
+	 * @ (either @~ or @%font% with ASCII escape (27)). */
+	size_t k;
+	int n = 0;
+	for (k = 0; k < strlen (text); k++) {
+		if (text[k] != '@') continue;
+		/* Start of an escape sequence */
+		k++;
+		if (text[k] != '!') continue;	/* Not a composite character request */
+		k++;	/* Step to start of character1 */
+		if (text[k] == '\\') k += 4; else k++;	/* Skip the octal or regular first character */
+		if (text[k] != '@') continue;	/* No font switching in the composite glyph */
+		/* Here we do have such a thing, and we need to avoid the regular string splitting at @ in PSL_plottext and PSL_deftextdim */
+		text[k] = PSL_ASCII_ES;	/* Replace @ with ASCII ESC code for now */
+		k++;	/* Font code type is ~ or % */
+		if (text[k] == '~')	/* Symbol font */
+			k++;	/* Step to character2 */
+		else {	/* Some random font switch */
+			k++;	/* Step past first % */
+			while (text[k] != '%') k++;	/* Skip past the font name or number */
+			k++;	/* Step to character2 */
+		}
+		if (text[k] == '\\') k += 4; else k++;	/* Skip the octal or regular second character */
+		if (text[k] != '@')	/* Not ideal, user error presumably */
+			PSL_message (PSL, PSL_MSG_WARNING, "Warning: psl_got_composite_fontswitch expected a font-change at end of composite character 2\n");
+		else	/* Get passed the font return code */
+			text[k] = PSL_ASCII_ES;	/* Skip to end of text section */
+		n++;	/* Found one of these cases */
+	}
+	if (n) PSL_message (PSL, PSL_MSG_DEBUG, "psl_got_composite_fontswitch found %d composite characters with different fonts/char sets\n", n);
+}
+
 static int psl_paragraphprocess (struct PSL_CTRL *PSL, double y, double fontsize, char *paragraph) {
 	/* Typeset one or more paragraphs.  Separate paragraphs by adding \r to end of last word in a paragraph.
 	 * This is a subfunction that simply place all the text attributes on the stack.
 	 */
-	int n, p, n_scan, last_k = -1, error = 0, old_font, font, after, len, n_alloc_txt;
+	int n, p, n_scan, last_k = -1, error = 0, old_font, font, font2, after, len, n_alloc_txt, F_flag;
 	int *font_unique = NULL;
 	unsigned int i, i1, i0, j, k, n_items, n_font_unique, n_rgb_unique;
 	size_t n_alloc, n_words = 0;
@@ -1896,10 +1955,12 @@ static int psl_paragraphprocess (struct PSL_CTRL *PSL, double y, double fontsize
 
 	sub_on = super_on = scaps_on = symbol_on = font_on = size_on = color_on = under_on = false;
 
+
 	/* Break input string into words (sorta based on old pstext) */
 	n_alloc = PSL_CHUNK;
 	text = (char **) PSL_memory (PSL, NULL, n_alloc, char *);
 	copy = strdup (paragraph);	/* Need copy since strtok_r will mess with the text */
+	psl_got_composite_fontswitch (PSL, copy);
 	c = strtok_r (copy, sep, &lastp);	/* Found first word */
 	while (c) {	/* Found another word */
 		text[n_words] = strdup (c);
@@ -1971,13 +2032,38 @@ static int psl_paragraphprocess (struct PSL_CTRL *PSL, double y, double fontsize
 							n_alloc <<= 1;
 							word = PSL_memory (PSL, word, n_alloc, struct PSL_WORD *);
 						}
+						/* Watch out for escaped font change before 2nd character */
+						if (clean[i1] == PSL_ASCII_ES) {	/* Have a font change on either side of 2nd character */
+							i1++;
+							if (clean[i1] == '~')	/* Toggle the symbol font */
+								font2 = PSL_SYMBOL_FONT;
+							else {	/* Font switching with @%font% ...@%% */
+								i1++;
+								font2 = psl_getfont (PSL, &clean[i1]);
+								while (clean[i1] != '%') i1++;
+							}
+							i1++;	/* Now at start of 2nd character */
+							F_flag = PSL_COMPOSITE_2 | PSL_COMPOSITE_2_FNT;
+						}
+						else {	/* No 2nd font */
+							font2 = font;
+							F_flag = PSL_COMPOSITE_2;
+						}
+
 						if (clean[i1] == '\\') { /* 2nd char is Octal code character */
-							word[k] = psl_add_word_part (PSL, &clean[i1], 4, font, fontsize, sub_on, super_on, scaps_on, under_on, PSL_COMPOSITE_2, rgb);
+							word[k] = psl_add_word_part (PSL, &clean[i1], 4, font2, fontsize, sub_on, super_on, scaps_on, under_on, F_flag, rgb);
 							i1 += 4;
 						}
 						else {	/* Regular character */
-							word[k] = psl_add_word_part (PSL, &clean[i1], 1, font, fontsize, sub_on, super_on, scaps_on, under_on, PSL_COMPOSITE_2, rgb);
+							word[k] = psl_add_word_part (PSL, &clean[i1], 1, font2, fontsize, sub_on, super_on, scaps_on, under_on, F_flag, rgb);
 							i1++;
+						}
+						if (font2 != font) {	/* Skip past the font switcher */
+							i1++;	/* Step over the implicit @ (ASCII 27) */
+							if (font2 == PSL_SYMBOL_FONT)
+								i1++;	/* Move past the ~ */
+							else
+								i1 += 2;	/* Move past the %% */
 						}
 						if (!clean[i1]) word[k]->flag++;	/* New word after this composite */
 						k++;
@@ -2093,7 +2179,7 @@ static int psl_paragraphprocess (struct PSL_CTRL *PSL, double y, double fontsize
 			} /* End loop over word with @ in it */
 
 			if (!plain_word && (last_k = k - 1) >= 0) {	/* Allow space if text ends with @ commands only */
-				word[last_k]->flag &= 60;
+				word[last_k]->flag &= 124;	/* Knock of anything unused */
 				word[last_k]->flag |= 1;
 			}
 		}
@@ -2474,13 +2560,13 @@ static int psl_pattern_init (struct PSL_CTRL *PSL, int image_no, char *imagefile
 	else {	/* User image, check to see if already used */
 		if (imagefile == NULL) {
 			PSL_message (PSL, PSL_MSG_ERROR, "Error: Gave NULL as imagefile name\n");
-			PSL_exit (EXIT_FAILURE);
+			return (-1);
 		}
 		i = psl_search_userimages (PSL, imagefile);	/* i = 0 is the first user image */
 		if (i >= 0) return (PSL_N_PATTERNS + i + 1);	/* Already registered, just return number */
 		if (PSL->internal.n_userimages > (PSL_N_PATTERNS-1)) {
 			PSL_message (PSL, PSL_MSG_ERROR, "Error: Already maintaining %d user images and cannot accept any more\n", PSL->internal.n_userimages+1);
-			PSL_exit (EXIT_FAILURE);
+			return (-1);
 		}
 		/* Must initialize a previously unused image */
 		PSL->internal.user_image[PSL->internal.n_userimages] = PSL_memory (PSL, NULL, strlen (imagefile)+1, char);
@@ -3174,7 +3260,7 @@ static int psl_init_fonts (struct PSL_CTRL *PSL) {
 		if ((in = fopen (fullname, "r")) == NULL) {	/* File exist but opening fails? WTF! */
 			PSL_message (PSL, PSL_MSG_ERROR, "Fatal Error: ");
 			perror (fullname);
-			PSL_exit (EXIT_FAILURE);
+			return (EXIT_FAILURE);
 		}
 
 		while (fgets (buf, PSL_BUFSIZ, in)) {
@@ -3183,11 +3269,11 @@ static int psl_init_fonts (struct PSL_CTRL *PSL) {
 				PSL_message (PSL, PSL_MSG_ERROR, "Warning: Trouble decoding custom font info [%s].  Skipping this font\n", buf);
 				continue;
 			}
-			if (strlen (fullname) >= PSL_NAME_LEN) {
-				PSL_message (PSL, PSL_MSG_ERROR, "Warning: Font name %s exceeds %d characters and will be truncated\n", fullname, PSL_NAME_LEN);
-				fullname[PSL_NAME_LEN-1] = '\0';
+			if (strlen (fullname) >= PSL_FONTNAME_LEN) {
+				PSL_message (PSL, PSL_MSG_ERROR, "Warning: Font name %s exceeds %d characters and will be truncated\n", fullname, PSL_FONTNAME_LEN);
+				fullname[PSL_FONTNAME_LEN-1] = '\0';
 			}
-			strncpy (PSL->internal.font[i].name, fullname, PSL_NAME_LEN-1);
+			strncpy (PSL->internal.font[i].name, fullname, PSL_FONTNAME_LEN);
 			i++;
 			if (i == n_alloc) {
 				n_alloc <<= 1;
@@ -3390,7 +3476,7 @@ static char *psl_putcolor (struct PSL_CTRL *PSL, double rgb[]) {
 	}
 	if (!PSL_eq (rgb[3], 0.0)) {
 		/* Transparency */
-		sprintf (&text[strlen(text)], " %.12g /%s PSL_transp", 1.0 - rgb[3], PSL->current.transparency_mode);
+		sprintf (&text[strlen(text)], " %.12g %.12g /%s PSL_transp", 1.0 - rgb[3], 1.0 - rgb[3], PSL->current.transparency_mode);
 	}
 	return (text);
 }
@@ -3459,12 +3545,12 @@ int PSL_beginsession (struct PSL_CTRL *PSL, unsigned int flags, char *sharedir, 
 		psl_dos_path_fix (PSL->internal.SHAREDIR);
 		if (access(PSL->internal.SHAREDIR, R_OK)) {
 			PSL_message (PSL, PSL_MSG_ERROR, "Error: Could not access PSL_SHAREDIR %s.\n", PSL->internal.SHAREDIR);
-			PSL_exit (EXIT_FAILURE);
+			return (EXIT_FAILURE);
 		}
 	}
 	else {	/* No sharedir found */
 		PSL_message (PSL, PSL_MSG_ERROR, "Error: Could not locate PSL_SHAREDIR.\n");
-		PSL_exit (EXIT_FAILURE);
+		return (EXIT_FAILURE);
 	}
 
 	/* Determine USERDIR (directory containing user replacements contents in SHAREDIR) */
@@ -3901,15 +3987,33 @@ int PSL_setcurrentpoint (struct PSL_CTRL *PSL, double x, double y) {
 }
 
 int PSL_settransparency (struct PSL_CTRL *PSL, double transparency) {
-	/* Updates the current PDF transparency only */
+	/* Updates the current PDF transparency only (for both fill and stroke transparency) */
 	if (transparency < 0.0 || transparency > 1.0) {
 		PSL_message (PSL, PSL_MSG_ERROR, "Error: Bad transparency value [%g] - ignored\n", transparency);
 		return (PSL_BAD_RANGE);
 	}
 	if (transparency == PSL->current.transparency) return (PSL_NO_ERROR);	/* Quietly return if same as before */
 
-	PSL_command (PSL, "%.12g /%s PSL_transp\n", 1.0 - transparency, PSL->current.transparency_mode);
+	PSL_command (PSL, "%.12g %.12g /%s PSL_transp\n", 1.0 - transparency, 1.0 - transparency, PSL->current.transparency_mode);
 	PSL->current.transparency = transparency;	/* Remember current setting */
+	return (PSL_NO_ERROR);
+}
+
+int PSL_settransparencies (struct PSL_CTRL *PSL, double *transparencies) {
+	/* Updates the current PDF transparencies only (fill and stroke separately) */
+	if (transparencies[0] < 0.0 || transparencies[0] > 1.0) {
+		PSL_message (PSL, PSL_MSG_ERROR, "Error: Bad fill transparency value [%g] - ignored\n", transparencies[0]);
+		return (PSL_BAD_RANGE);
+	}
+	if (transparencies[1] < 0.0 || transparencies[1] > 1.0) {
+		PSL_message (PSL, PSL_MSG_ERROR, "Error: Bad stroke transparency value [%g] - ignored\n", transparencies[1]);
+		return (PSL_BAD_RANGE);
+	}
+	if (transparencies[0] == PSL->current.transparencies[0] && transparencies[1] == PSL->current.transparencies[1]) return (PSL_NO_ERROR);	/* Quietly return if same as before */
+
+	PSL_command (PSL, "%.12g %.12g /%s PSL_transp\n", 1.0 - transparencies[0], 1.0 - transparencies[1], PSL->current.transparency_mode);
+	PSL->current.transparencies[0] = transparencies[0];	/* Remember current settings */
+	PSL->current.transparencies[1] = transparencies[1];	/* Remember current settings */
 	return (PSL_NO_ERROR);
 }
 
@@ -3946,7 +4050,7 @@ int PSL_setfill (struct PSL_CTRL *PSL, double rgb[], int outline) {
 	}
 	else if (PSL_eq (rgb[3], 0.0) && !PSL_eq (PSL->current.rgb[PSL_IS_STROKE][3], 0.0)) {
 		/* If stroke color is transparent and fill is not, explicitly set transparency for fill */
-		PSL_command (PSL, "{%s 1 /Normal PSL_transp} FS\n", psl_putcolor (PSL, rgb));
+		PSL_command (PSL, "{%s 1 1 /Normal PSL_transp} FS\n", psl_putcolor (PSL, rgb));
 		PSL_rgb_copy (PSL->current.rgb[PSL_IS_FILL], rgb);
 	}
 	else {	/* Set new r/g/b fill, after possibly changing fill transparency */
@@ -4007,14 +4111,16 @@ int PSL_setimage (struct PSL_CTRL *PSL, int image_no, char *imagefile, unsigned 
 
 	/* Determine if image was used before */
 
-	if ((image_no > 0 && image_no <= PSL_N_PATTERNS) && !PSL->internal.pattern[image_no-1].status)	/* Unused predefined */
-		image_no = psl_pattern_init (PSL, image_no, NULL, NULL, 64, 64, 1);
+	if ((image_no > 0 && image_no <= PSL_N_PATTERNS) && !PSL->internal.pattern[image_no-1].status) {	/* Unused predefined */
+		if ((image_no = psl_pattern_init (PSL, image_no, NULL, NULL, 64, 64, 1)) < 0) return -1;	/* Error in psl_pattern_init */
+	}
 	else if (image_no < 0) {	/* User image, check if already used */
 		int i = psl_search_userimages (PSL, imagefile);	/* i = 0 is the first user image */
 		if (i == -1)	/* Not found or no previous user images loaded */
 			image_no = psl_pattern_init (PSL, -1, imagefile, image, dim[0], dim[1], dim[2]);
 		else
 			image_no = PSL_N_PATTERNS + i + 1;
+		if (image_no < 0) return -1;	/* Error in psl_pattern_init */
 	}
 	k = image_no - 1;	/* Image array index */
 	nx = PSL->internal.pattern[k].nx;
@@ -4269,7 +4375,7 @@ int PSL_endplot (struct PSL_CTRL *PSL, int lastpage) {
 		memset (PSL->internal.pattern, 0, 2*PSL_N_PATTERNS*sizeof (struct PSL_PATTERN));	/* Reset all pattern info since the file is now closed */
 	}
 	PSL_setdash (PSL, NULL, 0.0);
-	if (!PSL_eq (PSL->current.rgb[PSL_IS_STROKE][3], 0.0)) PSL_command (PSL, "1 /Normal PSL_transp\n");
+	if (!PSL_eq (PSL->current.rgb[PSL_IS_STROKE][3], 0.0)) PSL_command (PSL, "1 1 /Normal PSL_transp\n");
 
 	if (lastpage) {
 		PSL_command (PSL, "\ngrestore\n");	/* End encapsulation of main body for this plot */
@@ -4306,6 +4412,9 @@ int PSL_endplot (struct PSL_CTRL *PSL, int lastpage) {
 			PSL->internal.fp = NULL;
 		}
 	}
+	PSL->internal.offset[0] = PSL->internal.prev_offset[0];
+	PSL->internal.offset[1] = PSL->internal.prev_offset[1];
+
 	PSL->internal.call_level--;	/* Done with this module call */
 	return (PSL_NO_ERROR);
 }
@@ -4386,6 +4495,8 @@ int PSL_beginplot (struct PSL_CTRL *PSL, FILE *fp, int orientation, int overlay,
 
 	right_now = time ((time_t *)0);
 	PSL->internal.landscape = !(overlay || orientation);	/* Only rotate if not overlay and not Portrait */
+	PSL->internal.prev_offset[0] = PSL->internal.offset[0];
+	PSL->internal.prev_offset[1] = PSL->internal.offset[1];
 	PSL->internal.offset[0] = offset[0];
 	PSL->internal.offset[1] = offset[1];
 
@@ -4697,7 +4808,7 @@ int PSL_setcolor (struct PSL_CTRL *PSL, double rgb[], int mode) {
 	if (PSL_same_rgb (rgb, PSL->current.rgb[mode])) return (PSL_NO_ERROR);	/* Same color as already set */
 
 	/* Because psl_putcolor does not set transparency if it is 0%, we reset it here when needed */
-	if (PSL_eq (rgb[3], 0.0) && !PSL_eq (PSL->current.rgb[mode][3], 0.0)) PSL_command (PSL, "1 /Normal PSL_transp ");
+	if (PSL_eq (rgb[3], 0.0) && !PSL_eq (PSL->current.rgb[mode][3], 0.0)) PSL_command (PSL, "1 1 /Normal PSL_transp ");
 
 	/* Then, finally, set the color using psl_putcolor */
 	PSL_command (PSL, "%s\n", psl_putcolor (PSL, rgb));
@@ -4866,9 +4977,9 @@ int PSL_deftextdim (struct PSL_CTRL *PSL, const char *dim, double fontsize, char
 	 * depth or both width and height on the PostScript stack.
 	 */
 
-	char *tempstring = NULL, *piece = NULL, *piece2 = NULL, *ptr = NULL, *string = NULL, *plast = NULL, previous[BUFSIZ] = {""};
-	int dy, font, sub_on, super_on, scaps_on, symbol_on, font_on, size_on, color_on, under_on, old_font, last_chr, kase = PSL_LC;
-	bool last_sub = false, last_sup = false, supersub;
+	char *tempstring = NULL, *piece = NULL, *piece2 = NULL, *ptr = NULL, *string = NULL, *plast = NULL, previous[BUFSIZ] = {""}, c;
+	int dy, font, font2, sub_on, super_on, scaps_on, symbol_on, font_on, size_on, color_on, under_on, old_font, last_chr, kase = PSL_LC;
+	bool last_sub = false, last_sup = false, supersub, composite;
 	double orig_size, small_size, size, scap_size, ustep[2], dstep;
 
 	if (strlen (text) >= (PSL_BUFSIZ-1)) {
@@ -4891,6 +5002,8 @@ int PSL_deftextdim (struct PSL_CTRL *PSL, const char *dim, double fontsize, char
 		return (PSL_NO_ERROR);
 	}
 
+	psl_got_composite_fontswitch (PSL, string);
+
 	/* Here, we have special request for Symbol font and sub/superscript
 	 * @~ toggles between Symbol font and default font
 	 * @%<fontno>% switches font number <fontno>; give @%% to reset
@@ -4904,14 +5017,14 @@ int PSL_deftextdim (struct PSL_CTRL *PSL, const char *dim, double fontsize, char
 	piece  = PSL_memory (PSL, NULL, 2 * PSL_BUFSIZ, char);
 	piece2 = PSL_memory (PSL, NULL, PSL_BUFSIZ, char);
 
-	font = old_font = PSL->current.font_no;
+	font = font2 = old_font = PSL->current.font_no;
 	orig_size = size = fontsize;
 	small_size = size * PSL->current.subsupsize;	/* Sub-script/Super-script set at given fraction of font size */
 	scap_size = size * PSL->current.scapssize;	/* Small caps set at given fraction of font size */
 	ustep[PSL_LC] = PSL->current.sup_up[PSL_LC] * size;	/* Super-script baseline raised by given fraction of font size for lower case*/
 	ustep[PSL_UC] = PSL->current.sup_up[PSL_UC] * size;	/* Super-script baseline raised by given fraction of font size for upper case */
 	dstep = PSL->current.sub_down * size;		/* Sub-script baseline lowered by given fraction of font size */
-	sub_on = super_on = scaps_on = symbol_on = font_on = size_on = color_on = under_on = false;
+	sub_on = super_on = scaps_on = symbol_on = font_on = size_on = color_on = under_on = composite = false;
 	supersub = (strstr (string, "@-@+") || strstr (string, "@+@-"));	/* Check for sub/super combo */
 	tempstring = PSL_memory (PSL, NULL, strlen(string)+1, char);	/* Since strtok steps on it */
 	strcpy (tempstring, string);
@@ -4925,13 +5038,51 @@ int PSL_deftextdim (struct PSL_CTRL *PSL, const char *dim, double fontsize, char
 	}
 
 	while (ptr) {
-		if (ptr[0] == '!') {	/* Composite character */
+		if (ptr[0] == '!') {	/* Composite character. Only use the second character to measure width */
 			ptr++;
 			if (ptr[0] == '\\')	/* Octal code */
 				ptr += 4;
 			else
 				ptr++;
-			strncpy (piece, ptr, 2 * PSL_BUFSIZ);
+			/* Watch out for escaped font change before 2nd character */
+			if (ptr[0] == PSL_ASCII_ES) {	/* Have a font change on either side of 2nd character */
+				ptr++;
+				if (ptr[0] == '~')	/* Toggle the symbol font */
+					font2 = PSL_SYMBOL_FONT;
+				else {	/* Font switching with @%font% ...@%% */
+					ptr++;
+					font2 = psl_getfont (PSL, ptr);
+					while (*ptr != '%') ptr++;
+				}
+				ptr++;	/* Now at start of 2nd character */
+			}
+			else	/* No 2nd font */
+				font2 = font;
+			if (ptr[0] == '\\') {	/* Octal code */
+				c = ptr[4];
+				ptr[4] = '\0';	/* Temporary chop at end of this code */
+			}
+			else {
+				c = ptr[1];
+				ptr[1] = '\0';	/* Temporary chop at end of char */
+			}
+			strncpy (piece, ptr, 2 * PSL_BUFSIZ);	/* Picked character2 */
+			if (ptr[0] == '\\')	{	/* Octal code */
+				ptr[4] = c;	/* Restore code */
+				ptr += 4;
+			}
+			else {
+				ptr[1] = c;	/* Restore char */
+				ptr++;
+			}
+			if (font2 != font) {	/* Skip past the font switcher */
+				ptr++;	/* Step over the implicit @ (ASCII 27) */
+				if (font2 == PSL_SYMBOL_FONT)
+					ptr++;	/* Move past the ~ */
+				else
+					ptr += 2;	/* Move past the %% */
+			}
+			composite = true;	/* Flag this case */
 		}
 		else if (ptr[0] == '~') {	/* Symbol font toggle */
 			symbol_on = !symbol_on;
@@ -5028,6 +5179,10 @@ int PSL_deftextdim (struct PSL_CTRL *PSL, const char *dim, double fontsize, char
 				PSL_command (PSL, "PSL_last_width 0 G ");	/* Rewind position to orig baseline */
 				last_sub = last_sup = false;
 			}
+			if (ptr && composite) {
+				strcat (piece, ptr);
+				composite = false;
+			}
 			PSL_command (PSL, "%d F%d (%s) FP ", psl_ip (PSL, size), font, piece);
 			last_chr = ptr[strlen(piece)-1];
 			if (!super_on && (last_chr > 0 && last_chr < 255)) kase = (islower (last_chr)) ? PSL_LC : PSL_UC;
@@ -5103,7 +5258,7 @@ int PSL_plottext (struct PSL_CTRL *PSL, double x, double y, double fontsize, cha
 	const char *justcmd[12] = {"", "bl ", "bc ", "br ", "", "ml ", "mc ", "mr ", "", "tl ", "tc ", "tr "};
 	/* PS strings to be used dependent on "justify%4". Empty string added for unused value. */
 	const char *align[4] = {"0", "-2 div", "neg", ""};
-	int dy, i = 0, j, font, x_just, y_just, upen, ugap;
+	int dy, i = 0, j, font, font2, x_just, y_just, upen, ugap;
 	int sub_on, super_on, scaps_on, symbol_on, font_on, size_on, color_on, under_on, old_font, n_uline, start_uline, stop_uline, last_chr, kase = PSL_LC;
 	bool last_sub = false, last_sup = false, supersub;
 	double orig_size, small_size, size, scap_size, ustep[2], dstep, last_rgb[4] = {0.0, 0.0, 0.0, 0.0};
@@ -5148,6 +5303,8 @@ int PSL_plottext (struct PSL_CTRL *PSL, double x, double y, double fontsize, cha
 		return (PSL_NO_ERROR);
 	}
 
+	psl_got_composite_fontswitch (PSL, string);
+
 	/* For more difficult cases we use the PSL_deftextdim machinery to get the size of the font box */
 
 	if (justify > 1) {
@@ -5189,7 +5346,6 @@ int PSL_plottext (struct PSL_CTRL *PSL, double x, double y, double fontsize, cha
 		last_chr = ptr[strlen(ptr)-1];
 		ptr = strtok_r (NULL, "@", &plast);
 		kase = ((last_chr > 0 && last_chr < 255) && islower (last_chr)) ? PSL_LC : PSL_UC;
-
 	}
 
 	font = old_font = PSL->current.font_no;
@@ -5216,6 +5372,21 @@ int PSL_plottext (struct PSL_CTRL *PSL, double x, double y, double fontsize, cha
 				piece[0] = ptr[0];	piece[1] = 0;
 				ptr++;
 			}
+			/* Watch out for escaped font change before 2nd character */
+			if (ptr[0] == PSL_ASCII_ES) {	/* Have a font change on either side of 2nd character */
+				ptr++;
+				if (ptr[0] == '~')	/* Toggle the symbol font */
+					font2 = PSL_SYMBOL_FONT;
+				else {	/* Font switching with @%font% ...@%% */
+					ptr++;
+					font2 = psl_getfont (PSL, ptr);
+					psl_encodefont (PSL, font);
+					while (*ptr != '%') ptr++;
+				}
+				ptr++;	/* Now at start of 2nd character */
+			}
+			else
+				font2 = font;
 			if (ptr[0] == '\\') {	/* Octal code again */
 				strncpy (piece2, ptr, 4U);
 				piece2[4] = 0;
@@ -5225,8 +5396,17 @@ int PSL_plottext (struct PSL_CTRL *PSL, double x, double y, double fontsize, cha
 				piece2[0] = ptr[0];	piece2[1] = 0;
 				ptr++;
 			}
+			if (font2 != font) {	/* Skip past the font switcher */
+				ptr++;	/* Step over the implicit @ (ascii 27) */
+				if (font2 == PSL_SYMBOL_FONT)
+					ptr++;	/* Move past the ~ */
+				else
+					ptr += 2;	/* Move past the %% */
+			}
 			/* Try to center justify these two character to make a composite character - may not be right */
-			PSL_command (PSL, "%d F%d (%s) E exch %s -2 div dup 0 G\n", psl_ip (PSL, size), font, piece2, op[mode]);
+			PSL_command (PSL, "%d F%d (%s) E exch %s -2 div dup 0 G\n", psl_ip (PSL, size), font2, piece2, op[mode]);
+			if (font2 != font)	/* Must switch font in the call */
+				PSL_command (PSL, "%d F%d\n", psl_ip (PSL, size), font);
 			PSL_command (PSL, "(%s) E -2 div dup 0 G exch %s sub neg dup 0 lt {pop 0} if 0 G\n", piece, op[mode]);
 			strncpy (piece, ptr, 2 * PSL_BUFSIZ);
 		}
@@ -5431,6 +5611,8 @@ int PSL_plottextline (struct PSL_CTRL *PSL, double x[], double y[], int np[], in
 	 * 			= 64: Typeset text along path [straight text].
 	 * 			= 128: Fill box
 	 * 			= 256: Draw box
+	 * 			= 512: Fill & outline font, fill first, then outline
+	 * 			= 1024: Fill & outline font, outline first, then fill
 	 */
 
 	bool curved = ((mode & PSL_TXT_CURVED) == PSL_TXT_CURVED);	/* True if baseline must follow line path */
@@ -5464,7 +5646,7 @@ int PSL_plottextline (struct PSL_CTRL *PSL, double x[], double y[], int np[], in
 		PSL_command (PSL, "PSL_set_label_heights\n");	/* Estimate text heights */
 	}
 
-	extras = mode & (PSL_TXT_ROUND | PSL_TXT_FILLBOX | PSL_TXT_DRAWBOX);	/* This just gets these bit settings, if present */
+	extras = mode & (PSL_TXT_ROUND | PSL_TXT_FILLBOX | PSL_TXT_DRAWBOX | PSL_TXT_DRAWBOX | PSL_TXT_FILLPEN | PSL_TXT_PENFILL);	/* This just gets these bit settings, if present */
 	if (mode & PSL_TXT_SHOW) {	/* Lay down visible text */
 		PSL_comment (PSL, "Display the texts:\n");
 		PSL_command (PSL, "%d PSL_%s_path_labels\n", PSL_TXT_SHOW|extras, name[kind]);

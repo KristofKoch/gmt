@@ -1,6 +1,6 @@
 /*--------------------------------------------------------------------
  *
- *	Copyright (c) 1991-2020 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
+ *	Copyright (c) 1991-2021 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
  *	See LICENSE.TXT file for copying and redistribution conditions.
  *
  *	This program is free software; you can redistribute it and/or modify
@@ -30,6 +30,7 @@
 
 #define GMT_HISTORY_FILE	"gmt.history"
 #define GMT_SESSION_FILE	"gmt.session"
+#define GMT_SETTINGS_FILE	"gmt.conf"
 
 /* Session settings for default plot file prefix and format (extension) */
 

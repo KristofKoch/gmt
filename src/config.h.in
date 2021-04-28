@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (c) 1991-2020 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
+ * Copyright (c) 1991-2021 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
  * See LICENSE.TXT file for copying and redistribution conditions.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -33,7 +33,11 @@
 
 /* path to executables/libs */
 #define GMT_BINDIR_RELATIVE "@GMT_BINDIR@"
-#define GMT_LIBDIR_RELATIVE "@GMT_LIBDIR@"
+#ifndef WIN32
+    #define GMT_LIBDIR_RELATIVE "@GMT_LIBDIR@"
+#else
+    #define GMT_LIBDIR_RELATIVE "@GMT_BINDIR@"
+#endif
 
 /* path to shared files */
 #define GMT_SHARE_DIR "@CMAKE_INSTALL_PREFIX@/@GMT_DATADIR@"
@@ -56,6 +60,9 @@
 
 /* Name of core library */
 #define GMT_CORE_LIB_NAME "@GMT_CORE_LIB_NAME@"
+
+/* Name of gs executable */
+#define GMT_GS_EXECUTABLE "@GMT_GS_EXECUTABLE@"
 
 /* Name of supplemental library */
 #define GMT_SUPPL_LIBRARY "@GMT_SUPPL_LIBRARY@"

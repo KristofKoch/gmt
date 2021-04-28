@@ -22,7 +22,7 @@ Synopsis
 [ |-H|\ *factor* ]
 [ |-I| ]
 [ |-L|\ *listfile* ]
-[ **-Mb**\|\ **f**\ *pslayer* ]
+[ |-M|\ **b**\|\ **f**\ *pslayer* ]
 [ |-Q|\ [**g**\|\ **p**\|\ **t**][1\|2\|4] ]
 [ |-S| ]
 [ |-T|\ **b**\|\ **e**\|\ **E**\|\ **f**\|\ **F**\|\ **j**\|\ **g**\|\ **G**\|\ **m**\|\ **s**\|\ **t**\ [**+m**] ]
@@ -199,10 +199,10 @@ Optional Arguments
     PDF file from the list of input PS or PDF files. It requires the **-F** option.
     See also **NOTES** below.
 
-.. _-V:
-
-.. |Add_-V| unicode:: 0x20 .. just an invisible code
-.. include:: explain_-V.rst_
+.. |Add_-V| replace:: |Add_-V_links|
+.. include:: /explain_-V.rst_
+    :start-after: **Syntax**
+    :end-before: **Description**
 
 .. _-W:
 
@@ -235,7 +235,8 @@ Optional Arguments
     sets **-A** **-P**.
 
     Use **-W+k** to create a minimalist KML file that allows loading the
-    image in GoogleEarth. Note that for this option the image must be in
+    image in GoogleEarth. Note that for this option to work it is necessary that the postscript
+    image must have been created with **-JX** or **-Jx** cartesian projection of
     geographical coordinates. If not, a warning is issued but the KML
     file is created anyway. Several modifier options are available to
     customize the KML file in the form of **+**\ *opt* strings. Append
@@ -288,6 +289,8 @@ Optional Arguments
     5th elements contain the map limits, 6 to 9th the map limits in
     projected coordinates and the rest of the line has the regular **PROJ**
     string for this projection.
+
+.. _-Z:
 
 **-Z**
     Remove the input PostScript file(s) after the conversion.

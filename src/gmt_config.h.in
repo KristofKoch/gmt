@@ -1,6 +1,6 @@
 /*
  *
- *  Copyright (c) 1991-2020 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
+ *  Copyright (c) 1991-2021 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
  * See LICENSE.TXT file for copying and redistribution conditions.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -46,6 +46,9 @@
 
 /* compile with GDAL support <gdal.h> */
 #cmakedefine HAVE_GDAL
+
+/* compile with GEOS support <geos_c.h> */
+#cmakedefine HAVE_GEOS
 
 /* compile with LAPACK support */
 #cmakedefine HAVE_LAPACK
@@ -139,6 +142,7 @@
 #cmakedefine HAVE_STRTOF_
 #cmakedefine HAVE_STRTOK_R
 #cmakedefine HAVE_STRTOK_S
+#cmakedefine HAVE_STRSIGNAL
 #cmakedefine DECLARED_STRDUP
 #cmakedefine DECLARED_STRSEP
 

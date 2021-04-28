@@ -12,12 +12,12 @@ Synopsis
 
 .. include:: common_SYN_OPTs.rst_
 
-**gmt grdtrack** [ *xyfile* ] |-G|\ *grd1* |-G|\ *grd2* ...
+**gmt grdtrack** [ *table* ] |-G|\ *grd1* |-G|\ *grd2* ...
 [ |-A|\ **f**\|\ **p**\|\ **m**\|\ **r**\|\ **R**\ [**+l**] ]
 [ |-C|\ *length*/\ *ds*\ [*/spacing*][**+a**\|\ **+v**][**l**\|\ **r**] ]
 [ |-D|\ *dfile* ]
 [ |-E|\ *line* ]
-[ |-F|\ [**+b**][**+n**][**+z**\ *z0*] ]
+[ |-F|\ [**+b**][**+n**][**+r**][**+z**\ *z0*] ]
 [ |-N| ]
 [ |SYN_OPT-R| ]
 [ |-S|\ *method*/*modifiers* ]
@@ -36,6 +36,7 @@ Synopsis
 [ |SYN_OPT-o| ]
 [ |SYN_OPT-q| ]
 [ |SYN_OPT-s| ]
+[ |SYN_OPT-w| ]
 [ **-:**\ [**i**\|\ **o**] ]
 [ |SYN_OPT--| ]
 
@@ -61,10 +62,15 @@ edge is zero) unless the grid is automatically recognized as periodic.)
 Required Arguments
 ------------------
 
+*table*
+    This is an ASCII (or binary, see **-bi**)
+    file where the first 2 columns hold the (x,y) positions where the
+    user wants to sample the 2-D data set.
+
 .. _-G:
 
 **-G**\ *gridfile*
-    *grdfile* is a 2-D binary grid file with the function f(x,y). If the
+    *gridfile* is a 2-D binary grid file with the function f(x,y). If the
     specified grid is in Sandwell/Smith Mercator format you must append
     a comma-separated list of arguments that includes a scale to
     multiply the data (usually 1 or 0.1), the mode which stand for the
@@ -77,15 +83,10 @@ Required Arguments
     **-G** as many times as you have grids you wish to sample.
     Alternatively, use **-G+l**\ *list* to pass a list of file names.
     The grids are sampled and results are output in the order given.
-    (See GRID FILE FORMAT below.)
+    (See :ref:`Grid File Formats <grd_inout_full>`).
 
 Optional Arguments
 ------------------
-
-*xyfile*
-    This is an ASCII (or binary, see **-bi**)
-    file where the first 2 columns hold the (x,y) positions where the
-    user wants to sample the 2-D data set.
 
 .. _-A:
 
@@ -168,21 +169,24 @@ Optional Arguments
 
 .. _-F:
 
-**-F**\ [**+b**][**+n**][**+z**\ *z0*]
-    Find critical points along each cross-profile.
-    Requires **-C** and a single input grid. We examine each cross-profile generated
-    and report (*lonc*, *latc*, *distc*, *azimuthc*, *zc*) at the center peak of
+**-F**\ [**+b**][**+n**][**+r**][**+z**\ *z0*]
+    Find critical points along each cross-profile as a function of along-track distance.
+    Requires **-C** and a single input grid (*z*). We examine each cross-profile generated
+    and report (*dist*, *lonc*, *latc*, *distc*, *azimuthc*, *zc*) at the center peak of
     maximum *z* value, (*lonl*, *latl*, *distl*) and (*lonr*, *latr*, *distr*)
     at the first and last non-NaN point whose *z*-value exceeds *z0*, respectively,
-    and the *width* based on the two extreme points found. When searching for
-    the center peak and the extreme first and last values that exceed the threshold
-    we assume the profile is positive up.  If we instead are looking
-    for a trough then you must use **+n** to temporarily flip the profile to positive.
-    The threshold *z0* value is always given as >= 0; use **+z** to change it [0].
-    Alternatively, use **+b** to determine the balance point and standard deviation of the profile.
-    Note that we round the exact results to the nearest distance nodes.
-    We write 12 output columns per track with an identified center peak, with values
-    *lonc, latc, distc, azimuthc, zc, lonl, latl, distl, lonr, latr, distr, width*.
+    and the *width* based on the two extreme points found. Here, *dist* is the distance
+    along the original input *trackfile* and the other 12 output columns are a function
+    of that distance.  When searching for the center peak and the extreme first and last
+    values that exceed the threshold we assume the profile is positive up.  If we instead
+    are looking for a trough then you must use **+n** to temporarily flip the profile to
+    positive. The threshold *z0* value is always given as >= 0; use **+z** to change it [0].
+    Alternatively, use **+b** to determine the balance point and standard deviation of the
+    profile; this is the weighted mean and weighted standard deviation of the distances,
+    with *z* acting as the weight. Finally, use **+r** to obtain the weighted rms about the
+    cross-track center (*distc* == 0).  **Note**: We round the exact results to the nearest
+    distance nodes along the cross-profiles.  We write 13 output columns per track:
+    *dist, lonc, latc, distc, azimuthc, zc, lonl, latl, distl, lonr, latr, distr, width*.
 
 .. _-N:
 
@@ -190,10 +194,10 @@ Optional Arguments
     Do *not* skip points that fall outside the domain of the grid(s)
     [Default only output points within grid domain].
 
-.. _-R:
-
-.. |Add_-R| unicode:: 0x20 .. just an invisible code
+.. |Add_-R| replace:: |Add_-R_links|
 .. include:: explain_-R.rst_
+    :start-after: **Syntax**
+    :end-before: **Description**
 
 .. _-S:
 
@@ -237,10 +241,10 @@ Optional Arguments
    and give *radius* = 0 if you do not want to limit the radius search.
    To instead replace the input point with the coordinates of the nearest node, append **+p**.
 
-.. _-V:
-
-.. |Add_-V| unicode:: 0x20 .. just an invisible code
+.. |Add_-V| replace:: |Add_-V_links|
 .. include:: explain_-V.rst_
+    :start-after: **Syntax**
+    :end-before: **Description**
 
 .. _-Z:
 
@@ -284,13 +288,13 @@ Optional Arguments
 
 .. include:: explain_-s.rst_
 
+.. include:: explain_-w.rst_
+
 .. include:: explain_help.rst_
 
 .. include:: explain_distunits.rst_
 
 .. include:: explain_precision.rst_
-
-.. include:: explain_grd_inout_short.rst_
 
 .. include:: explain_grdresample2.rst_
 
@@ -320,14 +324,14 @@ To sample the file hawaii_topo.nc along the SEASAT track track_4.xyg
 (An ASCII table containing longitude, latitude, and SEASAT-derived
 gravity, preceded by one header record)::
 
-    grdtrack track_4.xyg -Ghawaii_topo.nc -h > track_4.xygt
+    gmt grdtrack track_4.xyg -Ghawaii_topo.nc -h > track_4.xygt
 
 To sample the Sandwell/Smith IMG format file topo.8.2.img (2 minute
 predicted bathymetry on a Mercator grid) and the Muller et al age grid
 age.3.2.nc along the lon,lat coordinates given in the file
 cruise_track.xy, try::
 
-    grdtrack cruise_track.xy -Gtopo.8.2.img,1,1 -Gage.3.2.nc > depths-age.d
+    gmt grdtrack cruise_track.xy -Gtopo.8.2.img,1,1 -Gage.3.2.nc > depths-age.d
 
 To sample the Sandwell/Smith IMG format file grav.18.1.img (1 minute
 free-air anomalies on a Mercator grid) along 100-km-long cross-profiles
@@ -336,12 +340,12 @@ erecting cross-profiles every 25 km and sampling the grid every 3 km, try
 
    ::
 
-    grdtrack track.xy -Ggrav.18.1.img,0.1,1 -C100k/3/25 -Ar > xprofiles.txt
+    gmt grdtrack track.xy -Ggrav.18.1.img,0.1,1 -C100k/3/25 -Ar > xprofiles.txt
 
 The same thing, but now determining the central anomaly location along track,
 with a threshold of 25 mGal, try::
 
-    grdtrack track.xy -Ggrav.18.1.img,0.1,1 -C100k/3/25 -F+z25 > locations.txt
+    gmt grdtrack track.xy -Ggrav.18.1.img,0.1,1 -C100k/3/25 -F+z25 > locations.txt
 
 To sample the grid data.nc along a line from the lower left to the upper
 right corner, using a grid spacing of 1 km on the geodesic, and output distances as well,

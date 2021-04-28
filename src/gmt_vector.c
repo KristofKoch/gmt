@@ -1,6 +1,6 @@
 /*--------------------------------------------------------------------
  *
- *	Copyright (c) 1991-2020 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
+ *	Copyright (c) 1991-2021 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
  *	See LICENSE.TXT file for copying and redistribution conditions.
  *
  *	This program is free software; you can redistribute it and/or modify
@@ -316,6 +316,7 @@ GMT_LOCAL uint64_t gmtvector_fix_up_path_cartonly (struct GMT_CTRL *GMT, double 
 	GMT->hidden.mem_coord[GMT_X][0] = x[0];	GMT->hidden.mem_coord[GMT_Y][0] = y[0];
 
 	for (i = k = 1; i < n; i++) {	/* For remaining points we must insert an intermediate node */
+		gmt_prep_tmp_arrays (GMT, GMT_NOTSET, k+1, 2);	/* Init or reallocate two tmp vectors */
 		if (mode == GMT_STAIRS_X) {	/* First follow x, then y */
 			GMT->hidden.mem_coord[GMT_X][k] = x[i];
 			GMT->hidden.mem_coord[GMT_Y][k] = y[i-1];
@@ -326,6 +327,7 @@ GMT_LOCAL uint64_t gmtvector_fix_up_path_cartonly (struct GMT_CTRL *GMT, double 
 		}
 		k++;
 		/* Then add original point */
+		gmt_prep_tmp_arrays (GMT, GMT_NOTSET, k+1, 2);	/* Init or reallocate two tmp vectors */
 		GMT->hidden.mem_coord[GMT_X][k] = x[i];	GMT->hidden.mem_coord[GMT_Y][k] = y[i];
 		k++;
 	}
@@ -361,7 +363,7 @@ GMT_LOCAL uint64_t gmtvector_fix_up_path_cartesian (struct GMT_CTRL *GMT, double
 	for (i = 1; i < n; i++) {
 		if (mode == GMT_STAIRS_Y) {	/* First follow x, then y */
 			n_step = lrint (fabs (x[i] - x[i-1]) / step);
-			for (j = 1; j < n_step; j++) {
+			for (j = 1; j <= n_step; j++) {
 				c = j / (double)n_step;
 				gmt_prep_tmp_arrays (GMT, GMT_NOTSET, n_new, 2);	/* Init or reallocate tmp read vectors */
 				GMT->hidden.mem_coord[GMT_X][n_new] = x[i-1] * (1 - c) + x[i] * c;
@@ -380,7 +382,7 @@ GMT_LOCAL uint64_t gmtvector_fix_up_path_cartesian (struct GMT_CTRL *GMT, double
 		}
 		else if (mode == GMT_STAIRS_X) {	/* First follow y, then x */
 			n_step = lrint (fabs (y[i]-y[i-1]) / step);
-			for (j = 1; j < n_step; j++) {
+			for (j = 1; j <= n_step; j++) {
 				c = j / (double)n_step;
 				gmt_prep_tmp_arrays (GMT, GMT_NOTSET, n_new, 2);	/* Init or reallocate tmp read vectors */
 				GMT->hidden.mem_coord[GMT_X][n_new] = x[i-1];
@@ -955,7 +957,7 @@ int gmt_gauss (struct GMT_CTRL *GMT, double *a, double *vec, unsigned int n, uns
 
 	gmt_M_free (GMT, isub);
 	gmt_M_free (GMT, line);
-	return (iet + ieb);   /* Return final error flag*/
+	return (iet + ieb);   /* Return final error flag */
 }
 
 int gmt_gaussjordan (struct GMT_CTRL *GMT, double *a, unsigned int nu, double *b) {
@@ -1223,6 +1225,16 @@ void gmt_matrix_vect_mult (struct GMT_CTRL *GMT, unsigned int dim, double a[3][3
 
 extern int dgemm_ (char* tra, char* trb, int* na, int* nb, int* nc, double* alpha, double* a, int *nd, double* b, int *ne, double* beta, double* c, int* nf);
 
+void gmt_matrix_vector_mult (struct GMT_CTRL *GMT, double *A, double *b, uint64_t n_rowsA, uint64_t n_colsA, double *c) {
+	uint64_t row, col, ij;
+	gmt_M_unused(GMT);
+	gmt_M_memset (c, n_colsA, double);
+	for (row = ij = 0; row < n_rowsA; row++) {
+		for (col = 0; col < n_colsA; col++, ij++)
+			c[row] += A[ij] * b[col];
+	}
+}
+
 void gmt_matrix_matrix_mult (struct GMT_CTRL *GMT, double *A, double *B, uint64_t n_rowsA, uint64_t n_rowsB, uint64_t n_colsB, double *C) {
 #ifdef HAVE_LAPACK
 	double one = 1.0, zero = 0.0;
@@ -1232,15 +1244,25 @@ void gmt_matrix_matrix_mult (struct GMT_CTRL *GMT, double *A, double *B, uint64_
 	gmt_M_memset (C, n_rowsA * n_colsB, double);
 	na = (int)n_rowsA, nb = (int)n_colsB, nc = (int)n_rowsB, nd = (int)n_rowsB, ne = (int)n_colsB, nf = (int)n_colsB;
 	// cblas_dgemm (CblasRowMajor, CblasNoTrans, CblasNoTrans, (int)n_rowsA, (int)n_colsB, (int)n_rowsB, one, A, (int)n_rowsB, B, (int)n_colsB, zero, C, (int)n_colsB);
+	if (n_colsB == 1) {	/* Do those separately */
+		gmt_matrix_vector_mult (GMT, A, B, n_rowsA, n_rowsB, C);
+		return;
+	}
+#if 0
 	if (n_colsB == 1) {	/* Vector, so no transposing of the matrix */
 		tr[0] = 'n';
 		ne = nf = (int)n_rowsB;
 	}
+#endif
 	dgemm_ ("t", tr, &na, &nb, &nc, &one, A, &nd, B, &ne, &zero, C, &nf);
 #else
 	/* Plain matrix multiplication, no speed up; space must exist */
 	uint64_t row, col, k, a_ij, b_ij, c_ij, n_colsA = n_rowsB;
 	gmt_M_unused(GMT);
+	if (n_colsB == 1) {	/* Do those separately */
+		gmt_matrix_vector_mult (GMT, A, B, n_rowsA, n_rowsB, C);
+		return;
+	}
 	for (row = 0; row < n_rowsA; row++) {
 		for (col = 0; col < n_colsB; col++) {
 			a_ij = row * n_colsA;		/* Start address of row in A */
@@ -1252,6 +1274,16 @@ void gmt_matrix_matrix_mult (struct GMT_CTRL *GMT, double *A, double *B, uint64_
 		}
 	}
 #endif
+}
+
+void gmt_matrix_matrix_add (struct GMT_CTRL *GMT, double *A, double *B, uint64_t n_rowsA, uint64_t n_colsA, double *C) {
+	gmt_M_unused(GMT);
+	uint64_t row, col, ij;
+	for (row = ij = 0; row < n_rowsA; row++) {
+		for (col = 0; col < n_colsA; col++, ij++) {
+			C[ij] = A[ij] + B[ij];
+		}
+	}
 }
 
 void gmt_make_rot_matrix2 (struct GMT_CTRL *GMT, double E[3], double w, double R[3][3]) {
@@ -1450,7 +1482,7 @@ uint64_t gmt_fix_up_path (struct GMT_CTRL *GMT, double **a_lon, double **a_lat, 
 			lon_i = lon[i-1] + dlon;	/* Use lon_i instead of lon[i] in the marching since this avoids any jumping */
 			theta = fabs (dlon) * cosd (lat[i-1]);
 			n_step = lrint (theta / step);
-			for (j = 1; j < n_step; j++) {
+			for (j = 1; j <= n_step; j++) {
 				c = j / (double)n_step;
 				gmt_prep_tmp_arrays (GMT, GMT_NOTSET, n_new, 2);	/* Init or reallocate tmp vectors */
 				GMT->hidden.mem_coord[GMT_X][n_new] = lon[i-1] * (1 - c) + lon_i * c;
@@ -1472,7 +1504,7 @@ uint64_t gmt_fix_up_path (struct GMT_CTRL *GMT, double **a_lon, double **a_lat, 
 		else if (mode == GMT_STAIRS_X) {	/* First follow parallel, then meridian */
 			theta = fabs (lat[i]-lat[i-1]);
 			n_step = lrint (theta / step);
-			for (j = 1; j < n_step; j++) {
+			for (j = 1; j <= n_step; j++) {
 				c = j / (double)n_step;
 				gmt_prep_tmp_arrays (GMT, GMT_NOTSET, n_new, 2);	/* Init or reallocate tmp read vectors */
 				GMT->hidden.mem_coord[GMT_X][n_new] = lon[i-1];

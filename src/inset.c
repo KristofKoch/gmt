@@ -1,6 +1,6 @@
 /*--------------------------------------------------------------------
  *
- *	Copyright (c) 1991-2020 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
+ *	Copyright (c) 1991-2021 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
  *	See LICENSE.TXT file for copying and redistribution conditions.
  *
  *	This program is free software; you can redistribute it and/or modify
@@ -85,7 +85,7 @@ static int usage (struct GMTAPI_CTRL *API, int level) {
 	const char *name = gmt_show_name_and_purpose (API, THIS_MODULE_LIB, THIS_MODULE_CLASSIC_NAME, THIS_MODULE_PURPOSE);
 	if (level == GMT_MODULE_PURPOSE) return (GMT_NOERROR);
 	GMT_Message (API, GMT_TIME_NONE, "usage: %s begin -D%s |\n\t-D%s\n", name, GMT_INSET_A, GMT_INSET_B);
-	GMT_Message (API, GMT_TIME_NONE, "\t[-F%s] [-M<margins>] [-N] [%s] [%s]\n\n", GMT_PANEL, GMT_V_OPT, GMT_PAR_OPT);
+	GMT_Message (API, GMT_TIME_NONE, "\t[-F%s]\n\t[-M<margins>] [-N] [%s] [%s]\n\n", GMT_PANEL, GMT_V_OPT, GMT_PAR_OPT);
 	GMT_Message (API, GMT_TIME_NONE, "usage: %s end [%s]\n\n", name, GMT_V_OPT);
 
 	if (level == GMT_SYNOPSIS) return (GMT_MODULE_SYNOPSIS);
@@ -181,9 +181,10 @@ static int parse (struct GMT_CTRL *GMT, struct INSET_CTRL *Ctrl, struct GMT_OPTI
 
 	if (Ctrl->In.mode == INSET_BEGIN) {
 		/* Was -R -J given */
+		n_errors += gmt_M_check_condition (GMT, !Ctrl->D.active, "Option -D is required for gmt inset begin\n");
 		n_errors += gmt_M_check_condition (GMT, GMT->common.J.active && !GMT->common.R.active[RSET], "Option -J: Requires -R as well!\n");
-		if (GMT->common.J.active) {	/* Compute map height */
-			if (gmt_M_err_pass (GMT, gmt_map_setup (GMT, GMT->common.R.wesn), "")) n_errors++;
+		if (!n_errors && GMT->common.J.active) {	/* Compute map height */
+			if (gmt_map_setup (GMT, GMT->common.R.wesn)) n_errors++;
 		}
 	}
 	else {	/* gmt inset end was given, when -D -F -M -N are not allowed */
@@ -281,7 +282,7 @@ EXTERN_MSC int GMT_inset (void *V_API, int mode, void *args) {
 		PSL_setorigin (PSL, Ctrl->D.inset.refpoint->x + Ctrl->M.margin[XLO], Ctrl->D.inset.refpoint->y + Ctrl->M.margin[YLO], 0.0, PSL_FWD);	/* Shift plot a bit */
 
 		/* First get the -B options in place before inset was called */
-		sprintf (ffile, "%s/gmt%d.%s/gmt.frame", API->session_dir, GMT_MAJOR_VERSION, API->session_name);
+		sprintf (ffile, "%s/gmt.frame", API->gwf_dir);
 		if ((fp = fopen (ffile, "r")) == NULL)
 			GMT_Report (API, GMT_MSG_INFORMATION, "No file %s with frame information - no adjustments made\n", ffile);
 		else {
@@ -314,13 +315,13 @@ EXTERN_MSC int GMT_inset (void *V_API, int mode, void *args) {
 		/* Here we need to finish the inset with a grestore and restate the original -R -J in the history file,
 		 * and finally remove the inset information file */
 
-		char tag[GMT_LEN16] = {""}, legend_justification[4] = {""};
+		char tag[GMT_LEN16] = {""}, legend_justification[4] = {""}, pen[GMT_LEN32] = {""}, fill[GMT_LEN32] = {""}, off[GMT_LEN32] = {""};
 		double legend_width = 0.0, legend_scale = 1.0;
 
-		if (gmt_get_legend_info (API, &legend_width, &legend_scale, legend_justification)) {	/* Unplaced legend file */
+		if (gmt_get_legend_info (API, &legend_width, &legend_scale, legend_justification, pen, fill, off)) {	/* Unplaced legend file */
 			char cmd[GMT_LEN64] = {""};
 			/* Default to white legend with 1p frame offset 0.2 cm from selected justification point [TR] */
-			snprintf (cmd, GMT_LEN64, "-Dj%s+w%gi+o0.2c -F+p1p+gwhite -S%g", legend_justification, legend_width, legend_scale);
+			snprintf (cmd, GMT_LEN64, "-Dj%s+w%gi+o%s -F+p%s+g%s -S%g", legend_justification, legend_width, off, pen, fill, legend_scale);
 			if ((error = GMT_Call_Module (API, "legend", GMT_MODULE_CMD, cmd))) {
 				GMT_Report (API, GMT_MSG_ERROR, "Failed to place legend on current inset figure\n");
 				Return (error);
@@ -331,7 +332,11 @@ EXTERN_MSC int GMT_inset (void *V_API, int mode, void *args) {
 		PSL_command (PSL, "U %% End inset\n");	/* Restore graphics state to what it was before the map inset */
 
 		/* Remove the inset history file */
-		gmt_history_tag (API, tag);
+		gmt_hierarchy_tag (API, GMT_HISTORY_FILE, GMT_OUT, tag);
+		sprintf (ffile, "%s/%s.%s", API->gwf_dir, GMT_HISTORY_FILE, tag);
+		gmt_remove_file (GMT, ffile);
+		/* Remove the gmt settings file */
+		gmt_hierarchy_tag (API, GMT_SETTINGS_FILE, GMT_OUT, tag);
 		sprintf (ffile, "%s/%s.%s", API->gwf_dir, GMT_HISTORY_FILE, tag);
 		gmt_remove_file (GMT, ffile);
 		/* Restore the old frame B setting to what it was before inset begin was called, if any */
@@ -340,7 +345,7 @@ EXTERN_MSC int GMT_inset (void *V_API, int mode, void *args) {
 			gmt_chop (Bopts);
 			fclose (fp);	/* Done reading the gmt.frame file */
 			if (!strncmp (Bopts, "# FRAME: ", 9U) && strlen (Bopts) > 9 && Bopts[9]) {	/* Got a previously saved -B frame setting */
-				sprintf (ffile, "%s/gmt%d.%s/gmt.frame", API->session_dir, GMT_MAJOR_VERSION, API->session_name);
+				sprintf (ffile, "%s/gmt.frame", API->gwf_dir);
 				if ((fp = fopen (ffile, "w")) == NULL) {	/* Not good */
 					GMT_Report (API, GMT_MSG_ERROR, "Cannot create frame file %s\n", ffile);
 					Return (GMT_ERROR_ON_FOPEN);
@@ -355,6 +360,7 @@ EXTERN_MSC int GMT_inset (void *V_API, int mode, void *args) {
 		gmt_remove_file (GMT, file);
 		GMT_Report (API, GMT_MSG_DEBUG, "inset: Removed inset file\n");
 		gmt_reload_history (API->GMT);
+		gmt_reload_settings (API->GMT);
 	}
 
 	gmt_plotend (GMT);

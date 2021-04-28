@@ -1,6 +1,6 @@
 /*--------------------------------------------------------------------
  *
- *    Copyright (c) 2004-2020 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
+ *    Copyright (c) 2004-2021 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
  *    See README file for copying and redistribution conditions.
  *--------------------------------------------------------------------*/
 /*
@@ -712,6 +712,7 @@ static int parse (struct GMT_CTRL *GMT, struct MGD77LIST_CTRL *Ctrl, struct GMT_
 	n_errors += gmt_M_check_condition (GMT, Ctrl->Q.active[Q_C] && Ctrl->Q.min[Q_C] >= Ctrl->Q.max[Q_C], "Option -Qc: Minimum course change equals or exceeds maximum course change!\n");
 	n_errors += gmt_M_check_condition (GMT, Ctrl->Q.active[Q_V] && (Ctrl->Q.min[Q_V] >= Ctrl->Q.max[Q_V] || Ctrl->Q.min[Q_V] < 0.0), "Option -Qv: Minimum velocity equals or exceeds maximum velocity or is negative!\n");
 	n_errors += gmt_M_check_condition (GMT, Ctrl->D.start > Ctrl->D.stop, "Option -D: Start time exceeds stop time!\n");
+	n_errors += gmt_M_check_condition (GMT, Ctrl->F.active && MGD77_Verify_Columns (GMT, Ctrl->F.flags), "Option F: Invalid column names encountered\n");
 
 	return (n_errors ? GMT_PARSE_ERROR : GMT_NOERROR);
 }
@@ -867,6 +868,7 @@ EXTERN_MSC int GMT_mgd77list (void *V_API, int mode, void *args) {
 
 	if (n_paths <= 0) {
 		GMT_Report (API, GMT_MSG_ERROR, "No cruises given\n");
+		MGD77_Path_Free (GMT, (uint64_t)n_paths, list);
 		Return (GMT_NO_INPUT);
 	}
 
@@ -881,7 +883,7 @@ EXTERN_MSC int GMT_mgd77list (void *V_API, int mode, void *args) {
 				MGD77_Path_Free (GMT, (uint64_t)n_paths, list);
 				Return (GMT_FILE_NOT_FOUND);
 			}
-			Ctrl->L.file = path;
+			Ctrl->L.file = strdup (path);
 		}
 		n_items = MGD77_Scan_Corrtable (GMT, Ctrl->L.file, list, n_paths, M.n_out_columns, M.desired_column, &item_names, 2);
 	}
@@ -1024,7 +1026,8 @@ EXTERN_MSC int GMT_mgd77list (void *V_API, int mode, void *args) {
 			break;
 	}
 
-	gmt_init_distaz (GMT, GMT_MAP_DIST_UNIT, GMT->common.j.mode, GMT_MAP_DIST);
+	if (gmt_init_distaz (GMT, GMT_MAP_DIST_UNIT, GMT->common.j.mode, GMT_MAP_DIST) == GMT_NOT_A_VALID_TYPE)
+		Return (GMT_NOT_A_VALID_TYPE);
 
 	Ctrl->S.start *= dist_scale;	Ctrl->S.stop *= dist_scale;	/* Convert the meters to the same units used for cumulative distances */
 	if (Ctrl->A.cable_adjust) Ctrl->A.sensor_offset *= dist_scale;
@@ -1038,7 +1041,7 @@ EXTERN_MSC int GMT_mgd77list (void *V_API, int mode, void *args) {
 				GMT_Report (API, GMT_MSG_ERROR, "No default MGD77 Correction table (%s) found!\n", path);
 				Return (GMT_FILE_NOT_FOUND);
 			}
-			Ctrl->L.file = path;
+			Ctrl->L.file = strdup (path);
 		}
 		MGD77_Parse_Corrtable (GMT, Ctrl->L.file, list, n_paths, M.n_out_columns, M.desired_column, 2, &CORR);
 	}
@@ -1117,20 +1120,20 @@ EXTERN_MSC int GMT_mgd77list (void *V_API, int mode, void *args) {
 		}
 		for (kk = kx = pos = 0; pos < n_out_columns; kk++, pos++) {	/* Prepare GMT output formatting machinery */
 			while (kx < n_aux && aux[kx].pos == kk) {	/* Insert formatting for auxiliary column (none are special) */
-				gmt_set_column (GMT, GMT_OUT, pos, GMT_IS_FLOAT);
+				gmt_set_column_type (GMT, GMT_OUT, pos, GMT_IS_FLOAT);
 				pos++, kx++;
 			}
 			if (kk >= n_cols_to_process) continue;	/* Don't worry about helper columns that won't be printed */
 			c  = M.order[kk].set;
 			id = M.order[kk].item;
 			if (c == MGD77_M77_SET && id == time_column)	/* Special time formatting */
-				gmt_set_column (GMT, GMT_OUT, pos, M.time_format);
+				gmt_set_column_type (GMT, GMT_OUT, pos, M.time_format);
 			else if (c == MGD77_M77_SET && id == lon_column)	/* Special lon formatting */
-				gmt_set_column (GMT, GMT_OUT, pos, GMT_IS_LON);
+				gmt_set_column_type (GMT, GMT_OUT, pos, GMT_IS_LON);
 			else if (c == MGD77_M77_SET && id == lat_column)	/* Special lat formatting */
-				gmt_set_column (GMT, GMT_OUT, pos, GMT_IS_LAT);
+				gmt_set_column_type (GMT, GMT_OUT, pos, GMT_IS_LAT);
 			else 		/* Everything else is float (not true for the 3 strings though but dealt with separately) */
-				gmt_set_column (GMT, GMT_OUT, pos, GMT_IS_FLOAT);
+				gmt_set_column_type (GMT, GMT_OUT, pos, GMT_IS_FLOAT);
 		}
 
 		if (first_cruise && !GMT->common.b.active[GMT_OUT] && GMT->current.setting.io_header[GMT_OUT]) {	/* Write out header record */
@@ -1504,7 +1507,7 @@ EXTERN_MSC int GMT_mgd77list (void *V_API, int mode, void *args) {
 
 						/* --------------- Attack the NaNs problem -----------------*/
 						if (clean)		/* Nice, no NaNs at sight */
-							gmt_intpol(GMT, cumdist, mtf_bak, D->H.n_records, D->H.n_records, cumdist_off, mtf_int, GMT->current.setting.interpolant);
+							gmt_intpol(GMT, cumdist, mtf_bak, NULL, D->H.n_records, D->H.n_records, cumdist_off, mtf_int, 0.0, GMT->current.setting.interpolant);
 						else {
 							/* Need to allocate these auxiliary vectors */
 							ind = gmt_M_memory(GMT, NULL, D->H.n_records, int);
@@ -1522,7 +1525,7 @@ EXTERN_MSC int GMT_mgd77list (void *V_API, int mode, void *args) {
 									n++;
 								}
 							}
-							gmt_intpol(GMT, cumdist_cl, mtf_cl, n, n, cumdist_off_cl, mtf_int_cl, GMT->current.setting.interpolant);
+							gmt_intpol(GMT, cumdist_cl, mtf_cl, NULL, n, n, cumdist_off_cl, mtf_int_cl, 0.0, GMT->current.setting.interpolant);
 							for (k_off = n = 0; k_off < D->H.n_records; k_off++) {
 								if (ind[k_off])
 									mtf_int[k_off] = mtf_int_cl[n++];

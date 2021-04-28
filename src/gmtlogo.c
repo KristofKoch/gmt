@@ -1,6 +1,6 @@
 /*--------------------------------------------------------------------
  *
- *	Copyright (c) 1991-2020 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
+ *	Copyright (c) 1991-2021 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
  *	See LICENSE.TXT file for copying and redistribution conditions.
  *
  *	This program is free software; you can redistribute it and/or modify
@@ -152,6 +152,12 @@ static float gmt_letters[GMT_N_LETTERS][2] = {	/* The G, M, T polygons */
 	{ 110.32, -41.8 }
 };
 
+enum gmtlogo_label {
+	GMTLOGO_LABEL_NAME	= 0,
+	GMTLOGO_LABEL_URL,
+	GMTLOGO_LABEL_NONE
+};
+
 /* Specific colors for fonts, land, water, text etc */
 
 #define c_font		"51/51/51"
@@ -214,8 +220,8 @@ static int usage (struct GMTAPI_CTRL *API, int level) {
 	gmt_mappanel_syntax (API->GMT, 'F', "Specify a rectangular panel behind the GMT logo.", 0);
 	GMT_Option (API, "J-Z,K,O,P,R");
 	GMT_Message (API, GMT_TIME_NONE, "\t-S Control text label plotted beneath the logo:\n");
-	GMT_Message (API, GMT_TIME_NONE, "\t   Append l to plot text label [Default].\n");
-	GMT_Message (API, GMT_TIME_NONE, "\t   Append u to plot URL for GMT.\n");
+	GMT_Message (API, GMT_TIME_NONE, "\t   Append l to plot \"The Generic Mapping Tools\" [Default].\n");
+	GMT_Message (API, GMT_TIME_NONE, "\t   Append u to plot the URL for GMT.\n");
 	GMT_Message (API, GMT_TIME_NONE, "\t   Append n to skip label entirely.\n");
 	GMT_Option (API, "U,V");
 	GMT_Option (API, "X,c,f,t,.");
@@ -247,7 +253,7 @@ static int parse (struct GMT_CTRL *GMT, struct GMTLOGO_CTRL *Ctrl, struct GMT_OP
 				if ((Ctrl->D.refpoint = gmt_get_refpoint (GMT, opt->arg, 'D')) == NULL)
 					n_errors++;	/* Failed basic parsing */
 				else {	/* args are [+w<width>][+j<justify>][+o<dx>[/<dy>]] */
-					if (gmt_validate_modifiers (GMT, Ctrl->D.refpoint->args, 'D', "jow")) n_errors++;
+					if (gmt_validate_modifiers (GMT, Ctrl->D.refpoint->args, 'D', "jow", GMT_MSG_ERROR)) n_errors++;
 					if (gmt_get_modifier (Ctrl->D.refpoint->args, 'j', string))
 						Ctrl->D.justify = gmt_just_decode (GMT, string, PSL_NO_DEF);
 					else	/* With -Dj or -DJ, set default to reference justify point, else BL */
@@ -269,10 +275,10 @@ static int parse (struct GMT_CTRL *GMT, struct GMTLOGO_CTRL *Ctrl, struct GMT_OP
 			case 'S':
 				Ctrl->S.active = true;
 				switch (opt->arg[0]) {
-					case 'l': Ctrl->S.mode = 0;	break;	/* Label */
-					case 'u': Ctrl->S.mode = 1;	break;	/* URL */
-					case 'n': Ctrl->S.mode = 2;	break;	/* URL */
-					default:  Ctrl->S.mode = 0;	break;	/* Label */
+					case 'l': Ctrl->S.mode = GMTLOGO_LABEL_NAME;	break;	/* Label */
+					case 'u': Ctrl->S.mode = GMTLOGO_LABEL_URL;		break;	/* url */
+					case 'n': Ctrl->S.mode = GMTLOGO_LABEL_NONE;	break;	/* no label */
+					default:  Ctrl->S.mode = GMTLOGO_LABEL_NAME;	break;	/* Label */
 				}
 				break;
 			case 'W':	/* Scale for the logo */
@@ -294,7 +300,7 @@ static int parse (struct GMT_CTRL *GMT, struct GMTLOGO_CTRL *Ctrl, struct GMT_OP
 	}
 	if (Ctrl->D.width == 0.0) Ctrl->D.width = 2.0;	/* Default width */
 	if (Ctrl->D.refpoint && Ctrl->D.refpoint->mode != GMT_REFPOINT_PLOT) {	/* Anything other than -Dx need -R -J; other cases don't */
-		static char *kind = "gjJnx";	/* The five types of refpoint specifications */
+		static char *kind = GMT_REFPOINT_CODES;	/* The five types of refpoint specifications */
 		n_errors += gmt_M_check_condition (GMT, !GMT->common.R.active[RSET], "Option -D%c requires the -R option\n", kind[Ctrl->D.refpoint->mode]);
 		n_errors += gmt_M_check_condition (GMT, !GMT->common.J.active, "Option -D%c requires the -J option\n", kind[Ctrl->D.refpoint->mode]);
 	}
@@ -349,7 +355,7 @@ EXTERN_MSC int GMT_gmtlogo (void *V_API, int mode, void *args) {
 	/* The following is needed to have gmtlogo work correctly in perspective */
 
 	gmt_M_memset (wesn, 4, double);
-	dim[GMT_X] = Ctrl->D.width, dim[GMT_Y] = (Ctrl->S.mode == 2) ? 1.55 * 0.25 * Ctrl->D.width : 0.5 * Ctrl->D.width; /* Height is 0.5 * width unless when text is deactivated */
+	dim[GMT_X] = Ctrl->D.width, dim[GMT_Y] = (Ctrl->S.mode == GMTLOGO_LABEL_NONE) ? 1.55 * 0.25 * Ctrl->D.width : 0.5 * Ctrl->D.width; /* Height is 0.5 * width unless when text is deactivated */
 	if (!(GMT->common.R.active[RSET] && GMT->common.J.active)) {	/* When no projection specified, use fake linear projection */
 		GMT->common.R.active[RSET] = true;
 		GMT->common.J.active = false;
@@ -357,22 +363,22 @@ EXTERN_MSC int GMT_gmtlogo (void *V_API, int mode, void *args) {
 		gmt_set_refpoint (GMT, Ctrl->D.refpoint);	/* Finalize reference point plot coordinates, if needed */
 		gmt_adjust_refpoint (GMT, Ctrl->D.refpoint, dim, Ctrl->D.off, Ctrl->D.justify, PSL_BL);	/* Adjust refpoint to BL corner */
 		wesn[XHI] = Ctrl->D.refpoint->x + Ctrl->D.width;	wesn[YHI] = Ctrl->D.refpoint->y + 0.5 * Ctrl->D.width;
-		if (gmt_M_err_pass (GMT, gmt_map_setup (GMT, wesn), "")) Return (GMT_PROJECTION_ERROR);
-		PSL = gmt_plotinit (GMT, options);
+		if (gmt_map_setup (GMT, wesn)) Return (GMT_PROJECTION_ERROR);
+		if ((PSL = gmt_plotinit (GMT, options)) == NULL) Return (API->error);
 		gmt_plane_perspective (GMT, GMT->current.proj.z_project.view_plane, GMT->current.proj.z_level);
 	}
 	else {	/* First use current projection, project, then use fake projection */
-		if (gmt_M_err_pass (GMT, gmt_map_setup (GMT, GMT->common.R.wesn), "")) Return (GMT_PROJECTION_ERROR);
+		if (gmt_map_setup (GMT, GMT->common.R.wesn)) Return (GMT_PROJECTION_ERROR);
 		gmt_set_refpoint (GMT, Ctrl->D.refpoint);	/* Finalize reference point plot coordinates, if needed */
 		gmt_adjust_refpoint (GMT, Ctrl->D.refpoint, dim, Ctrl->D.off, Ctrl->D.justify, PSL_BL);	/* Adjust to BL corner */
-		PSL = gmt_plotinit (GMT, options);
+		if ((PSL = gmt_plotinit (GMT, options)) == NULL) Return (API->error);
 		gmt_plane_perspective (GMT, GMT->current.proj.z_project.view_plane, GMT->current.proj.z_level);
 		GMT->common.J.active = false;
 		gmt_parse_common_options (GMT, "J", 'J', "X1i");
 		wesn[XLO] = Ctrl->D.refpoint->x;	wesn[YLO] = Ctrl->D.refpoint->y;
 		wesn[XHI] = Ctrl->D.refpoint->x + Ctrl->D.width;	wesn[YHI] = Ctrl->D.refpoint->y + 0.5 * Ctrl->D.width;
 		GMT->common.R.active[RSET] = GMT->common.J.active = true;
-		if (gmt_M_err_pass (GMT, gmt_map_setup (GMT, wesn), "")) Return (GMT_PROJECTION_ERROR);
+		if (gmt_map_setup (GMT, wesn)) Return (GMT_PROJECTION_ERROR);
 	}
 
 	PSL_command (PSL, "V\n");	/* Ensure the entire gmtlogo output after initialization is between gsave/grestore */
@@ -387,7 +393,7 @@ EXTERN_MSC int GMT_gmtlogo (void *V_API, int mode, void *args) {
 
 	/* Plot the title beneath the map with 1.5 vertical stretching */
 
-	if (Ctrl->S.mode == 2)
+	if (Ctrl->S.mode == GMTLOGO_LABEL_NONE)
 		y = 0.0;
 	else {
 		sprintf (cmd, "%g,AvantGarde-Demi,%s", scale * 9.5, c_font);	/* Create required font */
@@ -395,9 +401,9 @@ EXTERN_MSC int GMT_gmtlogo (void *V_API, int mode, void *args) {
 		fmode = gmt_setfont (GMT, &F);
 		PSL_setfont (PSL, F.id);
 		PSL_command (PSL, "V 1 1.5 scale\n");
-		if (Ctrl->S.mode == 0)
+		if (Ctrl->S.mode == GMTLOGO_LABEL_NAME)
 			PSL_plottext (PSL, 0.5 * dim[GMT_X], 0.027 * scale, F.size, "@#THE@# G@#ENERIC@# M@#APPING@# T@#OOLS@#", 0.0, PSL_BC, fmode);
-		else
+		else if (Ctrl->S.mode == GMTLOGO_LABEL_URL)
 			PSL_plottext (PSL, 0.5 * dim[GMT_X], 0.027 * scale, F.size, "G@#ENERIC@#-M@#APPING@#-T@#OOLS@#.@#ORG@#", 0.0, PSL_BC, fmode);
 		PSL_command (PSL, "U\n");
 		y = scale * 0.220;
@@ -405,14 +411,14 @@ EXTERN_MSC int GMT_gmtlogo (void *V_API, int mode, void *args) {
 
 	/* Plot the globe via GMT_psclip & GMT_pscoast */
 
-	snprintf (pars, GMT_LEN128, "--MAP_GRID_PEN=faint,%s --MAP_FRAME_PEN=%gp,%s --GMT_HISTORY=false", c_grid, scale * 0.3, c_grid);
+	snprintf (pars, GMT_LEN128, "--MAP_GRID_PEN=faint,%s --MAP_FRAME_PEN=%gp,%s --GMT_HISTORY=readonly", c_grid, scale * 0.3, c_grid);
 	sprintf (cmd, "-T -Rd -JI0/%gi -N -O -K -X%gi -Y%gi %s", scale * 1.55, scale * 0.225, y, pars);
 	GMT_Report (API, GMT_MSG_INFORMATION, "Calling psclip with args %s\n", cmd);
 	GMT_Call_Module (API, "psclip", GMT_MODULE_CMD, cmd);
-	sprintf (cmd, "-Rd -JI0/%gi -S%s -G%s -A35000+l -Dc -O -K %s --GMT_HISTORY=false", scale * 1.55, c_water, c_land, pars);
+	sprintf (cmd, "-Rd -JI0/%gi -Bxg45 -Byg30 -S%s -G%s -A35000+l -Dc -O -K %s --GMT_HISTORY=readonly", scale * 1.55, c_water, c_land, pars);
 	GMT_Report (API, GMT_MSG_INFORMATION, "Calling pscoast with args %s\n", cmd);
 	GMT_Call_Module (API, "pscoast", GMT_MODULE_CMD, cmd);
-	sprintf (cmd, "-Rd -JI0/%gi -C -O -K -Bxg45 -Byg30  %s --MAP_POLAR_CAP=none --GMT_HISTORY=false", scale * 1.55, pars);
+	sprintf (cmd, "-Rd -JI0/%gi -C -O -K  %s --MAP_POLAR_CAP=none --GMT_HISTORY=readonly", scale * 1.55, pars);
 	GMT_Report (API, GMT_MSG_INFORMATION, "Calling psclip with args %s\n", cmd);
 	GMT_Call_Module (API, "psclip", GMT_MODULE_CMD, cmd);
 
@@ -421,15 +427,15 @@ EXTERN_MSC int GMT_gmtlogo (void *V_API, int mode, void *args) {
 	/* Allocate a matrix container for holding the GMT-matrix coordinates */
 	par[0] = 2;	par[1] = GMT_N_LETTERS;
 	if ((M = GMT_Create_Data (API, GMT_IS_DATASET|GMT_VIA_MATRIX, GMT_IS_POLY, GMT_CONTAINER_ONLY, par, NULL, NULL, 0, GMT_IS_ROW_FORMAT, NULL)) == NULL)
-		exit (EXIT_FAILURE);
+		Return (GMT_RUNTIME_ERROR);
 	GMT_Put_Matrix (API, M, GMT_FLOAT, 0, gmt_letters);	/* Hook in our static float matrix */
-	GMT_Open_VirtualFile (API, GMT_IS_DATASET|GMT_VIA_MATRIX, GMT_IS_POLY, GMT_IN, M, file);	/* Open matrix for reading */
-	sprintf (cmd, "-<%s -R167/527/-90/90 -JI-13/%gi -O -K -G%s@40 --GMT_HISTORY=false",
+	GMT_Open_VirtualFile (API, GMT_IS_DATASET|GMT_VIA_MATRIX, GMT_IS_POLY, GMT_IN|GMT_IS_REFERENCE, M, file);	/* Open matrix for reading */
+	sprintf (cmd, "-<%s -R167/527/-90/90 -JI-13/%gi -O -K -G%s@40 --GMT_HISTORY=readonly",
 		file, scale * 1.55, c_gmt_shadow);
 	GMT_Report (API, GMT_MSG_INFORMATION, "Calling psxy with args %s\n", cmd);
 	GMT_Call_Module (API, "psxy", GMT_MODULE_CMD, cmd);
 	GMT_Init_VirtualFile (API, 0, file);	/* Reset since we are reading it a 2nd time */
-	sprintf (cmd, "-<%s -R167/527/-90/90 -JI-13/%gi -O -K -G%s -W%gp,%s -X-%gi -Y-%gi --GMT_HISTORY=false",
+	sprintf (cmd, "-<%s -R167/527/-90/90 -JI-13/%gi -O -K -G%s -W%gp,%s -X-%gi -Y-%gi --GMT_HISTORY=readonly",
 		file, scale * 2.47, c_gmt_fill, scale * 0.3, c_gmt_outline, scale * 0.483, scale * 0.230);
 	GMT_Report (API, GMT_MSG_INFORMATION, "Calling psxy with args %s\n", cmd);
 	GMT_Call_Module (API, "psxy", GMT_MODULE_CMD, cmd);

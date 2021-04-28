@@ -21,7 +21,7 @@ Synopsis
 [ |-N|\ *pfile*\ [**+a**][**+p**\ *start*][**+r**][**+z**] ]
 [ |-Q|\ [*unit*][**+c**\ *min*\ [/*max*]][**+h**][**+l**][**+p**][**+s**\ [**a**\|\ **d**]] ]
 [ |SYN_OPT-R| ]
-[ |-S|\ **h**\|\ **i**\|\ **u**\|\ **s**\|\ **j** ]
+[ |-S|\ **b**\ *width*\|\ **h**\|\ **i**\|\ **u**\|\ **s**\|\ **j** ]
 [ |-T|\ [*clippolygon*] ]
 [ |SYN_OPT-V| ]
 [ |SYN_OPT-b| ]
@@ -50,13 +50,11 @@ reversals, and polygon intersections.
 Required Arguments
 ------------------
 
-None.
+.. |Add_intables| unicode:: 0x20 .. just an invisible code
+.. include:: explain_intables.rst_
 
 Optional Arguments
 ------------------
-
-.. |Add_intables| unicode:: 0x20 .. just an invisible code
-.. include:: explain_intables.rst_
 
 .. _-A:
 
@@ -178,13 +176,13 @@ Optional Arguments
 
 .. _-S:
 
-**-S**\ **h**\|\ **i**\|\ **j**\|\ **s**\|\ **u**
-    Spatial processing of polygons. Choose from **-Sh** which identifies
-    perimeter and hole polygons (and flags/reverses them), **-Si** which returns
+**-S**\ **b**\ *width*\|\ **h**\|\ **i**\|\ **j**\|\ **s**\|\ **u**
+    Spatial processing of polygons. Choose from **-Sb**\ *width* which computes a buffer polygon around lines,
+    **-Sh** which identifies perimeter and hole polygons (and flags/reverses them), **-Si** which returns
     the intersection of polygons (closed), **-Su** which returns the
     union of polygons (closed), **-Ss** which will split polygons that
     straddle the Dateline, and **-Sj** which will join polygons that
-    were split by the Dateline.  **Note**: Only **-Ss** has been implemented.
+    were split by the Dateline.  **Note**: Only **-Sb**, **-Sh** and **-Ss** have been implemented.
 
 .. _-T:
 
@@ -195,10 +193,10 @@ Optional Arguments
     that when the **-R** clipping is in effect we will also look for
     polygons of length 4 or 5 that exactly match the **-R** clipping polygon.
 
-.. _-V:
-
-.. |Add_-V| unicode:: 0x20 .. just an invisible code
+.. |Add_-V| replace:: |Add_-V_links|
 .. include:: explain_-V.rst_
+    :start-after: **Syntax**
+    :end-before: **Description**
 
 .. |Add_-bi| replace:: [Default is 2 input columns].
 .. include:: explain_-bi.rst_

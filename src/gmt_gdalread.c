@@ -1,6 +1,6 @@
 /*--------------------------------------------------------------------
  *
- *	Copyright (c) 1991-2020 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
+ *	Copyright (c) 1991-2021 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
  *	See LICENSE.TXT file for copying and redistribution conditions.
  *
  *      This program is free software; you can redistribute it and/or modify
@@ -32,11 +32,18 @@
 /* Local functions */
 
 GMT_LOCAL GDALDatasetH gdal_open (struct GMT_CTRL *GMT, char *gdal_filename) {
-	char *file = NULL, path[PATH_MAX] = {""};
-	if (gmtlib_check_url_name (gdal_filename))	/* A vis*** URL, pass to GDAL as is */
+	char *file = NULL, path[PATH_MAX] = {""}, *c = NULL;
+	if (gmtlib_found_url_for_gdal (gdal_filename))	/* A vis*** URL, pass to GDAL as is */
 		strncpy (path, gdal_filename, PATH_MAX-1);
-	else if (strchr(gdal_filename, ':'))		/* Assume it is a SUBDATASET */
-		strncpy (path, gdal_filename, PATH_MAX-1);
+	else if ((strlen(gdal_filename) > 2) && (c = strchr(&gdal_filename[2], ':'))) {		/* Assume it is a SUBDATASET */
+		if (GMT->parent->cache) {
+			c[0] = '\0';
+			sprintf (path, "%s:%s/%s", gdal_filename, GMT->session.CACHEDIR, &c[1]);
+			c[0] = ':';
+		}
+		else
+			strncpy (path, gdal_filename, PATH_MAX-1);
+	}
 	else if ((file = gmt_getdatapath (GMT, gdal_filename, path, R_OK)) == NULL) {	/* Local file not found */
 		GMT_Report (GMT->parent, GMT_MSG_ERROR, "Unable to find %s.\n", gdal_filename);
 		return (NULL);
@@ -649,12 +656,15 @@ GMT_LOCAL int populate_metadata (struct GMT_CTRL *GMT, struct GMT_GDALREAD_OUT_C
 		   example file to test it. The example mentioned in issue http://gmtrac.soest.hawaii.edu/issues/254
 		   (where all this (re)started) not only is bugged as does not carry the AREA_OR_POINT metadata.
 		   So we'll check for the "Area" keyword and if found we will respect it and set grid to pix reg */
-		if (!pixel_reg && GDALGetMetadataItem(hDataset, "AREA_OR_POINT", NULL) &&
+		if (gmtlib_file_is_jpeg2000_tile (GMT->parent, gdal_filename) != GMT_NOTSET && (Ctrl->RasterXsize % 2) == 0 && (Ctrl->RasterYsize % 2) == 0)
+			/* PW: Reading GMT server special JP2 tiles: even size implies pixel registration */
+			pixel_reg = true;
+		else if (!pixel_reg && GDALGetMetadataItem(hDataset, "AREA_OR_POINT", NULL) &&
 			!strcmp(GDALGetMetadataItem(hDataset, "AREA_OR_POINT", NULL), "Area"))
-			pixel_reg = 1;
+			pixel_reg = true;
 		else if (!pixel_reg && GDALGetMetadataItem(hDataset, "GDALMD_AREA_OR_POINT", NULL) &&
 			!strcmp(GDALGetMetadataItem(hDataset, "GDALMD_AREA_OR_POINT", NULL), "Area"))
-			pixel_reg = 1;
+			pixel_reg = true;
 
 		Ctrl->hdr[6] = pixel_reg;
 		Ctrl->hdr[7] = adfGeoTransform[1];
@@ -783,7 +793,7 @@ int gmt_gdalread (struct GMT_CTRL *GMT, char *gdal_filename, struct GMT_GDALREAD
 		prhs->O.mem_layout[0] = topdown  ? 'T' : 'B';
 		prhs->O.mem_layout[1] = rowmajor ? 'R' : 'C';
 		prhs->O.mem_layout[2] = do_BIP   ? 'P' : 'B';
-		prhs->O.mem_layout[3] = 'a';
+		prhs->O.mem_layout[3] = 'a';		/* If later we find image has 4 layers, this will become 'A' */
 	}
 
 	if (prhs->p.active) pad = prhs->p.pad;
@@ -825,6 +835,7 @@ int gmt_gdalread (struct GMT_CTRL *GMT, char *gdal_filename, struct GMT_GDALREAD
 
 	if (error) {
 		GMT_Report (GMT->parent, GMT_MSG_ERROR, "gmt_gdalread failed to extract a Sub-region\n");
+		gmt_M_free (GMT, whichBands);
 		return (-1);
 	}
 
@@ -844,7 +855,7 @@ int gmt_gdalread (struct GMT_CTRL *GMT, char *gdal_filename, struct GMT_GDALREAD
 		OGRSpatialReferenceH  hSRS;
 		hSRS = OSRNewSpatialReference(NULL);
 
-		if (OSRImportFromProj4(hSRS, Ctrl->ProjRefPROJ4) == CE_None) {
+		if (Ctrl->ProjRefPROJ4 && OSRImportFromProj4(hSRS, Ctrl->ProjRefPROJ4) == CE_None) {	/* My be NULL if +unavailable */
 			char	*pszPrettyWkt = NULL;
 			OSRExportToPrettyWkt(hSRS, &pszPrettyWkt, false);
 			Ctrl->ProjRefWKT = strdup(pszPrettyWkt);
@@ -852,7 +863,7 @@ int gmt_gdalread (struct GMT_CTRL *GMT, char *gdal_filename, struct GMT_GDALREAD
 		}
 		else {
 			Ctrl->ProjRefWKT = NULL;
-			GMT_Report (GMT->parent, GMT_MSG_WARNING, "gmt_gdalread failed to convert the proj4 string\n%s\n to WKT\n",
+			GMT_Report (GMT->parent, GMT_MSG_WARNING, "gmt_gdalread failed to convert the proj4 string\n%s\nto WKT\nThis happens for example when no conversion between PROJ4 and the WKT is done by GDAL.",
 					Ctrl->ProjRefPROJ4);
 		}
 
@@ -879,6 +890,7 @@ int gmt_gdalread (struct GMT_CTRL *GMT, char *gdal_filename, struct GMT_GDALREAD
 			Ctrl->hdr[0] += Ctrl->hdr[7] / 2;	Ctrl->hdr[1] -= Ctrl->hdr[7] / 2;
 			Ctrl->hdr[2] += Ctrl->hdr[8] / 2;	Ctrl->hdr[3] -= Ctrl->hdr[8] / 2;
 		}
+		gmt_M_free (GMT, whichBands);
 		return (GMT_NOERROR);
 	}
 
@@ -971,6 +983,8 @@ int gmt_gdalread (struct GMT_CTRL *GMT, char *gdal_filename, struct GMT_GDALREAD
 
 	nBands = GDALGetRasterCount(hDataset);
 
+	if (nBands == 4) prhs->O.mem_layout[3] = 'A';
+
 	if (nReqBands) nBands = MIN(nBands,nReqBands);	/* If a band selection was made */
 
 	n_alloc = ((size_t)nBands) * ((size_t)nBufXSize + pad_w + pad_e) * ((size_t)nBufYSize + pad_s + pad_n);
@@ -993,6 +1007,8 @@ int gmt_gdalread (struct GMT_CTRL *GMT, char *gdal_filename, struct GMT_GDALREAD
 		case GDT_Int16:
 			if (prhs->f_ptr.active)		/* Use the previously allocated float pointer */
 				Ctrl->Float.data = prhs->f_ptr.grd;
+			else if (prhs->c_ptr.active) 	/* Use the previously allocated pointer */
+				Ctrl->Int16.data = (int16_t *)prhs->c_ptr.grd;
 			else
 				Ctrl->Int16.data = gmt_M_memory (GMT, NULL, n_alloc, int16_t);
 			break;
@@ -1001,18 +1017,26 @@ int gmt_gdalread (struct GMT_CTRL *GMT, char *gdal_filename, struct GMT_GDALREAD
 				Ctrl->Float.data = prhs->f_ptr.grd;
 				Ctrl->Float.active = true;		/* In case it was not set yet */
 			}
+			else if (prhs->c_ptr.active) {	/* Use the previously allocated pointer */
+				Ctrl->UInt16.data = (uint16_t *)prhs->c_ptr.grd;
+				Ctrl->UInt16.active = true;		/* In case it was not set yet */
+			}
 			else
 				Ctrl->UInt16.data = gmt_M_memory (GMT, NULL, n_alloc, uint16_t);
 			break;
 		case GDT_Int32:
 			if (prhs->f_ptr.active)		/* Use the previously allocated float pointer */
 				Ctrl->Float.data = prhs->f_ptr.grd;
+			else if (prhs->c_ptr.active) 	/* Use the previously allocated pointer */
+				Ctrl->Int32.data = (int32_t *)prhs->c_ptr.grd;
 			else
 				Ctrl->Int32.data = gmt_M_memory (GMT, NULL, n_alloc, int32_t);
 			break;
 		case GDT_UInt32:
 			if (prhs->f_ptr.active)		/* Use the previously allocated float pointer */
 				Ctrl->Float.data = prhs->f_ptr.grd;
+			else if (prhs->c_ptr.active) 	/* Use the previously allocated pointer */
+				Ctrl->UInt32.data = (uint32_t *)prhs->c_ptr.grd;
 			else
 				Ctrl->UInt32.data = gmt_M_memory (GMT, NULL, n_alloc, uint32_t);
 			break;
@@ -1056,15 +1080,16 @@ int gmt_gdalread (struct GMT_CTRL *GMT, char *gdal_filename, struct GMT_GDALREAD
 	else
 		nX = nXSize,	nY = nYSize;
 
-	rowVec = gmt_M_memory(GMT, NULL, nRowsPerBlock*nBlocks, size_t);
+	/* Can't find why but have to multiply by nRGBA otherwise it crashes in win32 builds */
+	rowVec = gmt_M_memory(GMT, NULL, (nRowsPerBlock * nRGBA) * nBlocks, size_t);
 	for (m = 0; m < nY; m++) rowVec[m] = m * nX;
-	colVec = gmt_M_memory(GMT, NULL, nX+pad_w+pad_e, size_t);	/* For now this will be used only to select BIP ordering */
+	colVec = gmt_M_memory(GMT, NULL, (nX+pad_w+pad_e) * nRGBA, size_t);	/* For now this will be used only to select BIP ordering */
 	/* --------------------------------------------------------------------------------- */
 
 	gmt_M_tic (GMT);
 
 	for (i = 0; i < nBands; i++) {
-		if (!nReqBands)		/* No band selection, read them sequentialy */
+		if (!nReqBands)		/* No band selection, read them sequentially */
 			hBand = GDALGetRasterBand(hDataset, i+1);
 		else			/* Band selection. Read only the requested ones */
 			hBand = GDALGetRasterBand(hDataset, (int)whichBands[i]);
@@ -1078,7 +1103,10 @@ int gmt_gdalread (struct GMT_CTRL *GMT, char *gdal_filename, struct GMT_GDALREAD
 			   (where all this (re)started) not only is bugged as it does not carry the AREA_OR_POINT metadata.
 			   So we'll check for the "Area" keyword and if found we will respect it and set grid to pix reg
 			*/
-			if (!pixel_reg && GDALGetMetadataItem(hDataset, "AREA_OR_POINT", NULL) &&
+			if (gmtlib_file_is_jpeg2000_tile (GMT->parent, gdal_filename) != GMT_NOTSET && (Ctrl->RasterXsize % 2) == 0 && (Ctrl->RasterYsize % 2) == 0)
+				/* PW: Reading GMT server special JP2 tiles: even size implies pixel registration */
+				pixel_reg = true;
+			else if (!pixel_reg && GDALGetMetadataItem(hDataset, "AREA_OR_POINT", NULL) &&
 				!strcmp(GDALGetMetadataItem(hDataset, "AREA_OR_POINT", NULL), "Area"))
 				pixel_reg = true;
 			else if (!pixel_reg && GDALGetMetadataItem(hDataset, "GDALMD_AREA_OR_POINT", NULL) &&
@@ -1197,16 +1225,33 @@ int gmt_gdalread (struct GMT_CTRL *GMT, char *gdal_filename, struct GMT_GDALREAD
 					break;
 				case GDT_Int16:
 					if (!prhs->f_ptr.active) Ctrl->Int16.active = true;
-					for (m = startRow, mm = 0; m < endRow; m++, mm++) {
-						nn = (pad_w+m)*(nXSize_withPad) + startColPos;
-						for (n = fliplr ? nXSize-1 : 0; fliplr ? n >= 0 : n < nXSize; fliplr ? n-- : n++)
-							if (prhs->f_ptr.active) {
-								int16_t tmpI16;
-								memcpy (&tmpI16, &tmp[(rowVec[mm] + n) * sizeof(int16_t)], sizeof(int16_t));
-								Ctrl->Float.data[nn++] = tmpI16;
-							}
-							else
-								memcpy(&Ctrl->Int16.data[nn++], &tmp[(rowVec[mm] + n) * sizeof(int16_t)], sizeof(int16_t));
+					if (gmtlib_file_is_jpeg2000_tile (GMT->parent, gdal_filename) != GMT_NOTSET) {
+						/* PW: Special case of jp2 tile with possible NaNs that are not recognized without the .aux.xml file */
+						float f_NaN = GMT->session.f_NaN;	/* Shorthand */
+						for (m = startRow, mm = 0; m < endRow; m++, mm++) {
+							nn = (pad_w+m)*(nXSize_withPad) + startColPos;
+							for (n = fliplr ? nXSize-1 : 0; fliplr ? n >= 0 : n < nXSize; fliplr ? n-- : n++)
+								if (prhs->f_ptr.active) {
+									int16_t tmpI16;
+									memcpy (&tmpI16, &tmp[(rowVec[mm] + n) * sizeof(int16_t)], sizeof(int16_t));
+									Ctrl->Float.data[nn++] = (tmpI16 == -32768) ? f_NaN : tmpI16;
+								}
+								else
+									memcpy(&Ctrl->Int16.data[nn++], &tmp[(rowVec[mm] + n) * sizeof(int16_t)], sizeof(int16_t));
+						}
+					}
+					else {	/* All other short int cases */
+						for (m = startRow, mm = 0; m < endRow; m++, mm++) {
+							nn = (pad_w+m)*(nXSize_withPad) + startColPos;
+							for (n = fliplr ? nXSize-1 : 0; fliplr ? n >= 0 : n < nXSize; fliplr ? n-- : n++)
+								if (prhs->f_ptr.active) {
+									int16_t tmpI16;
+									memcpy (&tmpI16, &tmp[(rowVec[mm] + n) * sizeof(int16_t)], sizeof(int16_t));
+									Ctrl->Float.data[nn++] = tmpI16;
+								}
+								else
+									memcpy(&Ctrl->Int16.data[nn++], &tmp[(rowVec[mm] + n) * sizeof(int16_t)], sizeof(int16_t));
+						}
 					}
 					break;
 				case GDT_UInt16:

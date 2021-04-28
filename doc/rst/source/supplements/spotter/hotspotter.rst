@@ -12,7 +12,7 @@ Synopsis
 
 .. include:: ../../common_SYN_OPTs.rst_
 
-**gmt hotspotter** [*tables*] |-E|\ *rotfile* |-G|\ *CVAgrid*
+**gmt hotspotter** [*table*] |-E|\ *rotfile* |-G|\ *CVAgrid*
 |SYN_OPT-I|
 |SYN_OPT-R|
 [ |-N|\ *upper_age* ]
@@ -34,7 +34,7 @@ Description
 -----------
 
 **hotspotter** reads (longitude, latitude, amplitude, radius, age)
-records from *tables* [or standard input] and calculates flowlines
+records from *table* [or standard input] and calculates flowlines
 using the specified stage or total reconstruction rotations. These
 flowlines are convolved with the shape of the seamount (using a Gaussian
 shape given amplitude and radius = 6 sigma) and added up to give a
@@ -90,10 +90,10 @@ Optional Arguments
     Truncate seamount ages exceeding the upper age set with **-N** [no
     truncation].
 
-.. _-V:
-
-.. |Add_-V| unicode:: 0x20 .. just an invisible code
-.. include:: ../../explain_-V.rst_
+.. |Add_-V| replace:: |Add_-V_links|
+.. include:: /explain_-V.rst_
+    :start-after: **Syntax**
+    :end-before: **Description**
 
 .. |Add_-bi| replace:: [Default is 5 input columns].
 .. include:: ../../explain_-bi.rst_
@@ -105,7 +105,7 @@ Optional Arguments
 .. include:: ../../explain_-e.rst_
 
 .. |Add_-h| unicode:: 0x20 .. just an invisible code
-.. include:: ../../explain_-h.rst_../../explain_-V.rst_
+.. include:: ../../explain_-h.rst_
 
 .. include:: ../../explain_-icols.rst_
 .. include:: ../../explain_-ocols.rst_
@@ -160,4 +160,3 @@ Wessel, P., 1999, "Hotspotting" tools released, EOS Trans. AGU, 80 (29), p. 319.
 Wessel, P., 2008, Hotspotting: Principles and properties of a plate
 tectonic Hough transform, Geochem. Geophys. Geosyst. 9(Q08004):
 doi:10.1029/2008GC002058.
-

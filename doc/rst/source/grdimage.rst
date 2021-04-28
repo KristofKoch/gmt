@@ -12,16 +12,18 @@ Synopsis
 
 .. include:: common_SYN_OPTs.rst_
 
-**gmt grdimage** *grd_z* \| *img* \| *grd_r grd_g grd_b*
+**gmt grdimage** *grid* \| *image*
+|-J|\ *parameters*
 [ |-A|\ *out_img*\ [**=**\ *driver*] ]
 [ |SYN_OPT-B| ]
 [ |-C|\ *cpt* ]
 [ |-D|\ [**r**] ]
-[ |-E|\ [**i**\|\ *dpi*] ] |-J|\ *parameters*
+[ |-E|\ [**i**\|\ *dpi*] ]
 [ |-G|\ *color*\ [**+b**\|\ **f**] ]
 [ |-I|\ [*intensfile*\|\ *intensity*\|\ *modifiers*] ]
-[ |-M| ] [ |-N| ]
-[ |-Q| ]
+[ |-M| ]
+[ |-N| ]
+[ |-Q|\ [*color*] ]
 [ |SYN_OPT-Rz| ]
 [ |SYN_OPT-U| ]
 [ |SYN_OPT-V| ]

@@ -12,12 +12,12 @@ Synopsis
 
 .. include:: ../../common_SYN_OPTs.rst_
 
-**gmt talwani2d** [ *modeltable* ]
+**gmt talwani2d** [ *table* ]
 [ |-A| ] [ |-D|\ *rho* ] ]
 [ |-F|\ **f**\|\ **n**\ [*lat*]\|\ **v** ]
 [ |-M|\ [**h**]\ [**v**] ]
 [ |-N|\ *trackfile* ]
-[ |-T|\ [*min/max*\ /]\ *inc*\ [**+n**] \|\ |-T|\ *file*\|\ *list* ]
+[ |-T|\ [*min/max*\ /]\ *inc*\ [**+i**\|\ **n**] \|\ |-T|\ *file*\|\ *list* ]
 [ |-Z|\ *level*\ [*ymin*\ /*ymax*] ]
 [ |SYN_OPT-V| ]
 [ |SYN_OPT-bi| ]
@@ -33,7 +33,7 @@ Synopsis
 Description
 -----------
 
-**talwani2d** will read the multi-segment *modeltable* from file (or standard input).
+**talwani2d** will read the multi-segment *table* from file (or standard input).
 This file contains cross-sections of one or more 2-D bodies, with one polygon
 per segment.  The segment header must contain the parameter *rho*, which
 states the the density of this body (individual body
@@ -47,7 +47,7 @@ Options are available to control axes units and direction.
 Required Arguments
 ------------------
 
-*modeltable*
+*table*
     The file describing cross-sectional polygons of one or more bodies.  Polygons
     will be automatically closed if not already closed, and repeated vertices will
     be eliminated.  The segment header for each body will be examined for a density
@@ -87,9 +87,14 @@ Optional Arguments
 
 .. _-T:
 
-**-T**\ [*min/max*\ /]\ *inc*\ [**+n**] \|\ |-T|\ *file*\|\ *list*
+**-T**\ [*min/max*\ /]\ *inc*\ [**+i**\|\ **n**] \|\ |-T|\ *file*\|\ *list*
     Specify an equidistant output lattice.
     For details on array creation, see `Generate 1D Array`_.
+
+.. |Add_-V| replace:: |Add_-V_links|
+.. include:: /explain_-V.rst_
+    :start-after: **Syntax**
+    :end-before: **Description**
 
 .. _-Z:
 
@@ -112,11 +117,6 @@ Optional Arguments
 .. include:: ../../explain_-icols.rst_
 
 .. include:: ../../explain_-ocols.rst_
-
-.. _-V:
-
-.. |Add_-V| unicode:: 0x20 .. just an invisible code
-..  include:: ../../explain_-V.rst_
 
 .. include:: ../../explain_core.rst_
 

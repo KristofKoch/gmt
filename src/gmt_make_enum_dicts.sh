@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 #
-# Copyright (c) 2012-2020 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
+# Copyright (c) 2012-2021 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
 # See LICENSE.TXT file for copying and redistribution conditions.
 #
 # This script just makes the include snippet gmt_enum_dict.h
@@ -14,7 +14,7 @@ export LC_ALL=C
 # Set temporary directory
 TMPDIR=${TMPDIR:-/tmp}
 
-egrep -v 'struct|union|enum|_GMT|define|char' gmt_resources.h | tr ',' ' ' | awk '{if (substr($1,1,4) == "GMT_") print $1, $3}' > ${TMPDIR}/junk1.txt
+egrep -v '^struct|^union|^enum|_GMT|^#define|^char' gmt_resources.h | tr ',' ' ' | awk '{if (substr($1,1,4) == "GMT_") print $1, $3}' > ${TMPDIR}/junk1.txt
 grep -v GMT_OPT_ ${TMPDIR}/junk1.txt > ${TMPDIR}/junk2.txt
 grep GMT_OPT_ ${TMPDIR}/junk1.txt | awk '{print $1, substr($2,1,2)} '> ${TMPDIR}/junk3.txt
 while read key value; do

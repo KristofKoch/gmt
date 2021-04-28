@@ -12,7 +12,7 @@ Synopsis
 
 .. include:: ../../common_SYN_OPTs.rst_
 
-**gmt talwani3d** [ *modeltable* ]
+**gmt talwani3d** [ *table* ]
 [ |-A| ] [ |-D|\ *rho* ] ]
 [ |-F|\ **f**\|\ **n**\ [*lat*]\|\ **v** ]
 [ |-G|\ *outfile* ]
@@ -37,7 +37,7 @@ Synopsis
 Description
 -----------
 
-**talwani3d** will read the multi-segment *modeltable* from file (or standard input).
+**talwani3d** will read the multi-segment *table* from file (or standard input).
 This file contains horizontal contours of a 3-D body at different *z*-levels, with one contour
 per segment.  Each segment header must contain the parameters *zlevel rho*, which
 states the *z* level of the contour and the density of this slice (optionally, individual slice
@@ -52,7 +52,7 @@ axes units and direction.
 Required Arguments
 ------------------
 
-*modeltable*
+*table*
     The file describing the horizontal contours of the bodies.  Contours will be
     automatically closed if not already closed, and repeated vertices will be eliminated.
     The segment header for each slice will be examined for the pair *zlevel rho*, i.e.,
@@ -62,10 +62,10 @@ Required Arguments
 
 .. include:: ../../explain_-I.rst_
 
-.. _-R:
-
-.. |Add_-R| unicode:: 0x20 .. just an invisible code
+.. |Add_-R| replace:: |Add_-R_links|
 .. include:: ../../explain_-R.rst_
+    :start-after: **Syntax**
+    :end-before: **Description**
 
 Optional Arguments
 ------------------
@@ -90,9 +90,9 @@ Optional Arguments
 .. _-G:
 
 **-G**\ *outfile*
-    Specify the name of the output data (for grids, see GRID FILE FORMATS below).
-    Required when an equidistant grid is implied for output.  If **-N** is used
-    then output is written to stdout unless **-G** specifies an output file.
+    Specify the name of the output data (for grids, see :ref:`Grid File Formats
+    <grd_inout_full>`). Required when an equidistant grid is implied for output.
+    If **-N** is used then output is written to stdout unless **-G** specifies an output file.
 
 .. _-M:
 
@@ -107,10 +107,10 @@ Optional Arguments
     is used there are no grids and the output data records are written to stdout.  If *trackfile*
     has 3 columns we take the *z* value as our observation level; this level may be overridden via **-Z**.
 
-.. _-V:
-
-.. |Add_-V| unicode:: 0x20 .. just an invisible code
-..  include:: ../../explain_-V.rst_
+.. |Add_-V| replace:: |Add_-V_links|
+.. include:: /explain_-V.rst_
+    :start-after: **Syntax**
+    :end-before: **Description**
 
 .. _-Z:
 

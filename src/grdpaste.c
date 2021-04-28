@@ -1,6 +1,6 @@
 /*--------------------------------------------------------------------
  *
- *	Copyright (c) 1991-2020 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
+ *	Copyright (c) 1991-2021 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
  *	See LICENSE.TXT file for copying and redistribution conditions.
  *
  *	This program is free software; you can redistribute it and/or modify
@@ -96,23 +96,23 @@ static int parse (struct GMT_CTRL *GMT, struct GRDPASTE_CTRL *Ctrl, struct GMT_O
 		switch (opt->option) {
 
 			case '<':	/* Input files */
-				if (n_in == 0 && gmt_check_filearg (GMT, '<', opt->arg, GMT_IN, GMT_IS_GRID))
-					Ctrl->In.file[n_in++] = strdup (opt->arg);
-				else if (n_in == 1 && gmt_check_filearg (GMT, '<', opt->arg, GMT_IN, GMT_IS_GRID))
-					Ctrl->In.file[n_in++] = strdup (opt->arg);
-				else {
+				if (n_in == 2) {
 					n_errors++;
 					GMT_Report (GMT->parent, GMT_MSG_ERROR, "Only two files may be pasted\n");
+				}
+				else {
+					Ctrl->In.file[n_in] = strdup (opt->arg);
+					if (GMT_Get_FilePath (GMT->parent, GMT_IS_GRID, GMT_IN, GMT_FILE_REMOTE, &(Ctrl->In.file[n_in]))) n_errors++;
+					n_in++;
 				}
 				break;
 
 			/* Processes program-specific parameters */
 
  			case 'G':
-				if ((Ctrl->G.active = gmt_check_filearg (GMT, 'G', opt->arg, GMT_OUT, GMT_IS_GRID)) != 0)
-					Ctrl->G.file = strdup (opt->arg);
-				else
-					n_errors++;
+				Ctrl->G.active = true;
+				if (opt->arg[0]) Ctrl->G.file = strdup (opt->arg);
+				if (GMT_Get_FilePath (GMT->parent, GMT_IS_GRID, GMT_OUT, GMT_FILE_LOCAL, &(Ctrl->G.file))) n_errors++;
 				break;
 
 			default:	/* Report bad options */
@@ -208,7 +208,7 @@ EXTERN_MSC int GMT_grdpaste (void *V_API, int mode, void *args) {
 
 	common_y = (fabs (A->header->wesn[YLO] - B->header->wesn[YLO]) < y_noise && fabs (A->header->wesn[YHI] - B->header->wesn[YHI]) < y_noise);
 
-	if (gmt_M_is_geographic (GMT, GMT_IN)) {	/* Must be careful in determining a match since grids may differ by +/-360 in x */
+	if (gmt_M_x_is_lon (GMT, GMT_IN)) {	/* Must be careful in determining a match since grids may differ by +/-360 in x */
 		double del;
 		if (common_y) {	/* A and B are side-by-side, may differ by +-360 +- 1 pixel width */
 			del = A->header->wesn[XLO] - B->header->wesn[XHI];	/* Test if B left of A */
@@ -323,7 +323,7 @@ EXTERN_MSC int GMT_grdpaste (void *V_API, int mode, void *args) {
 		GMT_Report (API, GMT_MSG_ERROR, "Grids do not share a common edge!\n");
 		Return (GMT_RUNTIME_ERROR);
 	}
-	if (gmt_M_is_geographic (GMT, GMT_IN) && C->header->wesn[XHI] > 360.0) {	/* Take out 360 */
+	if (gmt_M_x_is_lon (GMT, GMT_IN) && C->header->wesn[XHI] > 360.0) {	/* Take out 360 */
 		C->header->wesn[XLO] -= 360.0;
 		C->header->wesn[XHI] -= 360.0;
 	}

@@ -2,7 +2,7 @@
 #
 # - Generates extra header files
 #
-# Copyright (c) 1991-2020 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
+# Copyright (c) 1991-2021 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
 # See LICENSE.TXT file for copying and redistribution conditions.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -69,9 +69,6 @@ macro (gen_gmt_dimensions_h)
 	file2list (_file_lines ${GMT_SRC}/src/gmt_cpt_masters.h)
 	list (REMOVE_DUPLICATES _file_lines)
 	list (LENGTH _file_lines GMT_N_CPT_MASTERS)
-	file2list (_file_lines ${GMT_SRC}/src/gmt_datasets.h)
-	list (REMOVE_DUPLICATES _file_lines)
-	list (LENGTH _file_lines GMT_N_DATASETS)
 
 	# count lines in generated headers
 	file2list (_file_lines gmt_keycases.h)

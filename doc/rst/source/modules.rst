@@ -27,6 +27,7 @@ All modules are requested via a call to the :doc:`gmt` program.
    :hidden:
 
    basemap
+   batch
    begin
    blockmean
    blockmedian
@@ -44,6 +45,7 @@ All modules are requested via a call to the :doc:`gmt` program.
    filter1d
    fitcircle
    gmt2kml
+   gmtbinstats
    gmtconnect
    gmtconvert
    gmtdefaults
@@ -57,6 +59,7 @@ All modules are requested via a call to the :doc:`gmt` program.
    gmtset
    gmtsimplify
    gmtspatial
+   gmtsplit
    gmtvector
    gmtwhich
    grd2cpt
@@ -79,6 +82,7 @@ All modules are requested via a call to the :doc:`gmt` program.
    grdlandmask
    grdmask
    grdmath
+   grdmix
    grdpaste
    grdproject
    grdsample
@@ -110,7 +114,6 @@ All modules are requested via a call to the :doc:`gmt` program.
    sphdistance
    sphinterpolate
    sphtriangulate
-   splitxyz
    subplot
    surface
    ternary
@@ -187,6 +190,7 @@ Core Modules
     :columns: 6
 
     - :doc:`basemap`
+    - :doc:`batch`
     - :doc:`begin`
     - :doc:`blockmean`
     - :doc:`blockmedian`
@@ -204,6 +208,7 @@ Core Modules
     - :doc:`filter1d`
     - :doc:`fitcircle`
     - :doc:`gmt2kml`
+    - :doc:`gmtbinstats`
     - :doc:`gmtconnect`
     - :doc:`gmtconvert`
     - :doc:`gmtdefaults`
@@ -217,6 +222,7 @@ Core Modules
     - :doc:`gmtset`
     - :doc:`gmtsimplify`
     - :doc:`gmtspatial`
+    - :doc:`gmtsplit`
     - :doc:`gmtvector`
     - :doc:`gmtwhich`
     - :doc:`grd2cpt`
@@ -239,6 +245,7 @@ Core Modules
     - :doc:`grdlandmask`
     - :doc:`grdmask`
     - :doc:`grdmath`
+    - :doc:`grdmix`
     - :doc:`grdpaste`
     - :doc:`grdproject`
     - :doc:`grdsample`
@@ -270,7 +277,6 @@ Core Modules
     - :doc:`sphdistance`
     - :doc:`sphinterpolate`
     - :doc:`sphtriangulate`
-    - :doc:`splitxyz`
     - :doc:`subplot`
     - :doc:`surface`
     - :doc:`ternary`
@@ -516,6 +522,8 @@ Convert or extract subsets of data
 ----------------------------------
 
 +-----------------------+-----------------------+
+| :doc:`gmtbinstats`    | |gmtbinstats_purpose| |
++-----------------------+-----------------------+
 | :doc:`gmtconnect`     | |gmtconnect_purpose|  |
 +-----------------------+-----------------------+
 | :doc:`gmtconvert`     | |gmtconvert_purpose|  |
@@ -523,6 +531,8 @@ Convert or extract subsets of data
 | :doc:`gmtselect`      | |gmtselect_purpose|   |
 +-----------------------+-----------------------+
 | :doc:`gmtspatial`     | |gmtspatial_purpose|  |
++-----------------------+-----------------------+
+| :doc:`gmtsplit`       | |gmtsplit_purpose|    |
 +-----------------------+-----------------------+
 | :doc:`gmtvector`      | |gmtvector_purpose|   |
 +-----------------------+-----------------------+
@@ -537,8 +547,6 @@ Convert or extract subsets of data
 | :doc:`grdcut`         | |grdcut_purpose|      |
 +-----------------------+-----------------------+
 | :doc:`grdpaste`       | |grdpaste_purpose|    |
-+-----------------------+-----------------------+
-| :doc:`splitxyz`       | |splitxyz_purpose|    |
 +-----------------------+-----------------------+
 | :doc:`xyz2grd`        | |xyz2grd_purpose|     |
 +-----------------------+-----------------------+
@@ -582,12 +590,16 @@ Grid operations
 +-----------------------+-----------------------+
 | :doc:`grdmath`        | |grdmath_purpose|     |
 +-----------------------+-----------------------+
+| :doc:`grdmix`         | |grdmix_purpose|      |
++-----------------------+-----------------------+
 | :doc:`grdvolume`      | |grdvolume_purpose|   |
 +-----------------------+-----------------------+
 
 Miscellaneous
 -------------
 
++-----------------------+-----------------------+
+| :doc:`batch`          | |batch_purpose|       |
 +-----------------------+-----------------------+
 | :doc:`gmt2kml`        | |gmt2kml_purpose|     |
 +-----------------------+-----------------------+

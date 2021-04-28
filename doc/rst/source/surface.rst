@@ -19,7 +19,7 @@ Synopsis
 [ |-C|\ *convergence_limit*\ [%] ]
 [ |-J|\ *parameters* ]
 [ |-D|\ *breakline_file*\ [**+z**\ [*level*]] ]
-[ |-L|\ **l**\ *lower* ] [ **-Lu**\ *upper* ]
+[ |-L|\ **l**\ *lower* ] [ |-L|\ **u**\ *upper* ]
 [ |-M|\ *max_radius* ]
 [ |-N|\ *max_iterations* ]
 [ |-Q| ]
@@ -36,6 +36,7 @@ Synopsis
 [ |SYN_OPT-i| ]
 [ |SYN_OPT-qi| ]
 [ |SYN_OPT-r| ]
+[ |SYN_OPT-w| ]
 [ |SYN_OPT-:| ]
 [ |SYN_OPT--| ]
 
@@ -46,18 +47,20 @@ Description
 
 **surface** reads randomly-spaced (x,y,z) triples from standard input
 [or *table*] and produces a binary grid file of gridded values z(x,y) by
-solving:
+solving the differential equation (away from data points)
 
-   (1 - T) \* L (L (z)) + T \* L (z) = 0
+.. math::
 
-where T is a tension factor between 0 and 1, and L indicates the
-Laplacian operator. T = 0 gives the "minimum curvature" solution which
+    (1 - t) \nabla ^2(z) + t \nabla (z) = 0,
+
+where *t* is a tension factor between 0 and 1, and :math:`\nabla` indicates the
+Laplacian operator. Here, *t* = 0 gives the "minimum curvature" solution which
 is equivalent to SuperMISP and the ISM packages. Minimum curvature can
 cause undesired oscillations and false local maxima or minima (See Smith
-and Wessel, 1990), and you may wish to use T > 0 to suppress these
-effects. Experience suggests T ~ 0.25 usually looks good for potential
-field data and T should be larger (T ~ 0.35) for steep topography data.
-T = 1 gives a harmonic surface (no maxima or minima are possible except
+and Wessel, 1990), and you may wish to use *t* > 0 to suppress these
+effects. Experience suggests *t* ~ 0.25 usually looks good for potential
+field data and *t* should be larger (*t* ~ 0.35) for steep topography data.
+*t* = 1 gives a harmonic surface (no maxima or minima are possible except
 at control data points). It is recommended that the user pre-process the
 data with :doc:`blockmean`, :doc:`blockmedian`, or :doc:`blockmode` to avoid
 spatial aliasing and eliminate redundant data. You may impose lower
@@ -70,6 +73,9 @@ boundary conditions in the longitude direction.
 Required Arguments
 ------------------
 
+.. |Add_intables| unicode:: 0x20 .. just an invisible code
+.. include:: explain_intables.rst_
+
 .. _-G:
 
 **-G**\ *outputfile.nc*
@@ -80,16 +86,13 @@ Required Arguments
 
 .. include:: explain_-I.rst_
 
-.. _-R:
-
-.. |Add_-R| unicode:: 0x20 .. just an invisible code
+.. |Add_-R| replace:: |Add_-R_links|
 .. include:: explain_-R.rst_
+    :start-after: **Syntax**
+    :end-before: **Description**
 
 Optional Arguments
 ------------------
-
-.. |Add_intables| unicode:: 0x20 .. just an invisible code
-.. include:: explain_intables.rst_
 
 .. _-A:
 
@@ -113,14 +116,12 @@ Optional Arguments
     intermediate (coarser) grids the effective convergence limit is divided
     by the grid spacing multiplier.
 
-.. _-J:
-
-**-J**\ *parameters*
-
 .. |Add_-J| replace::
     Select the data map projection. This projection is only used to add a referencing info
     to the grid formats that support it. E.g. netCDF, GeoTIFF, and others supported by GDAL.
 .. include:: explain_-J.rst_
+    :start-after: **Syntax**
+    :end-before: **Description**
 
 .. _-D:
 
@@ -198,12 +199,12 @@ Optional Arguments
     set to the same value. [Default = 0 for both gives minimum curvature
     solution.]
 
-.. _-V:
-
 .. |Add_-V| replace::
     **-V3** will report the convergence after each iteration;
-    **-V** will report only after each regional grid is converged.
+    **-V** will report only after each regional grid is converged. |Add_-V_links|
 .. include:: explain_-V.rst_
+    :start-after: **Syntax**
+    :end-before: **Description**
 
 .. _-Z:
 
@@ -240,6 +241,8 @@ Optional Arguments
 
 .. |Add_nodereg| unicode:: 0x20 .. just an invisible code
 .. include:: explain_nodereg.rst_
+
+.. include:: explain_-w.rst_
 
 .. include:: explain_colon.rst_
 

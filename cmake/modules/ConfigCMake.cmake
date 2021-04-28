@@ -159,7 +159,7 @@ if (NOT GMT_INCLUDEDIR)
 endif(NOT GMT_INCLUDEDIR)
 
 if (GMT_DATA_URL) # Backwards compatibility with old ConfigUser.cmake files
-	message (WARNING "CMake variable GMT_DATA_URL is deprecated and will be removed in the futhure releases. Use GMT_DATA_SERVER instead.")
+	message (WARNING "CMake variable GMT_DATA_URL is deprecated and will be removed in the future releases. Use GMT_DATA_SERVER instead.")
 	set (GMT_DATA_SERVER ${GMT_DATA_URL})
 endif (GMT_DATA_URL)
 
@@ -220,6 +220,12 @@ if (DO_EXAMPLES OR DO_TESTS AND NOT SUPPORT_EXEC_IN_BINARY_DIR)
 	"testing). Please disable testing on release builds.")
 	set (SUPPORT_EXEC_IN_BINARY_DIR ON)
 endif (DO_EXAMPLES OR DO_TESTS AND NOT SUPPORT_EXEC_IN_BINARY_DIR)
+
+# Some tests are known to fail, and can be excluded from the test by adding
+# the comment "# GMT_KNOWN_FAILURE".
+if (NOT DEFINED GMT_ENABLE_KNOWN2FAIL)
+	set (GMT_ENABLE_KNOWN2FAIL ON)
+endif (NOT DEFINED GMT_ENABLE_KNOWN2FAIL)
 
 # Make GNU, Intel, Clang and AppleClang compilers default to C99
 if (CMAKE_C_COMPILER_ID MATCHES "(GNU|Intel|Clang)" AND NOT CMAKE_C_FLAGS MATCHES "-std=")

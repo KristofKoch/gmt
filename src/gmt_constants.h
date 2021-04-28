@@ -1,6 +1,6 @@
 /*--------------------------------------------------------------------
  *
- *	Copyright (c) 1991-2020 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
+ *	Copyright (c) 1991-2021 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
  *	See LICENSE.TXT file for copying and redistribution conditions.
  *
  *	This program is free software; you can redistribute it and/or modify
@@ -88,7 +88,8 @@
 #define GMT_TOP_MODULE	1	/* func_level of top-level module being called */
 
 #define GMT_PAPER_DIM		32767	/* Upper limit on PostScript paper size under modern mode, in points (~11.6 meters) */
-#define GMT_PAPER_MARGIN	5	/* Default paper margin under modern mode, in inches (12.7 centimeter) */
+#define GMT_PAPER_MARGIN_AUTO	5	/* Default paper margin under modern mode, in inches (12.7 centimeter) for auto-size mode */
+#define GMT_PAPER_MARGIN_FIXED	1	/* Default paper margin under modern mode, in inches (12.7 centimeter) for fixed-size mode */
 
 /*! whether to ignore/read/write history file gmt.history */
 enum GMT_enum_history {
@@ -122,7 +123,7 @@ enum GMT_enum_length {
 	GMT_LEN128      = 128U,         /* Double of 64 */
 	GMT_LEN256      = 256U,         /* Max size of some text items */
 	GMT_LEN512      = 512U,         /* Max size of other text items */
-	GMT_LEN1024     = 1024U,        /* For file names (antecipating web fnames) */
+	GMT_LEN1024     = 1024U,        /* For file names (anticipating web fnames) */
 	GMT_MAX_RANGES  = 64U,          /* Limit on number of row ranges given in -q */
 	GMT_MAX_COLUMNS = 4096U,        /* Limit on number of columns in data tables (not grids) */
 	GMT_BUFSIZ      = 4096U,        /* Size of char record for i/o */
@@ -145,7 +146,8 @@ enum GMT_enum_array {
 	GMT_ARRAY_NOINC = 8,
 	GMT_ARRAY_SCALAR = 16,
 	GMT_ARRAY_NOMINMAX = 32,
-	GMT_ARRAY_ROUND = 64};
+	GMT_ARRAY_ROUND = 64,
+	GMT_ARRAY_UNIQUE = 128};
 
 /*! Handling of swap/no swap in i/o */
 enum GMT_swap_direction {
@@ -153,6 +155,38 @@ enum GMT_swap_direction {
 	k_swap_in,
 	k_swap_out};
 
+/*! Scripting languages */
+enum GMT_enum_script {GMT_BASH_MODE = 0,	/* Write Bash script */
+	GMT_CSH_MODE,			/* Write C-shell script */
+	GMT_DOS_MODE};			/* Write DOS script */
+
+/*! Various mode for basemap order */
+enum GMT_enum_basemap {
+	GMT_BASEMAP_BEFORE			= 0,
+	GMT_BASEMAP_AFTER			= 1,
+	GMT_BASEMAP_FRAME_BEFORE	= 0,
+	GMT_BASEMAP_FRAME_AFTER		= 1,
+	GMT_BASEMAP_GRID_BEFORE		= 0,
+	GMT_BASEMAP_GRID_AFTER		= 2,
+	GMT_BASEMAP_ANNOT_BEFORE	= 0,
+	GMT_BASEMAP_ANNOT_AFTER		= 4};
+
+/*! Handling of periodic data */
+enum GMT_time_period {
+	GMT_CYCLE_SEC = 1,
+	GMT_CYCLE_MIN,
+	GMT_CYCLE_HOUR,
+	GMT_CYCLE_DAY,
+	GMT_CYCLE_WEEK,
+	GMT_CYCLE_YEAR,
+	GMT_CYCLE_ANNUAL,
+	GMT_CYCLE_CUSTOM};
+
+/* Since -I is not a global option but we almost use it as such, we define the long-option for it here.
+ * Modules that need it in their module_kw[] array can just add it to their list. */
+#define GMT_INCREMENT_KW { '/', 'I', "increment", "", "", "e,n", "exact,number" }
+
+#define GMT_VERBOSE_CODES	"q ewticd"	/* List of valid codes to -V (the blank is for NOTICE which is not user selectable */
 #define GMT_DIM_UNITS	"cip"		/* Plot dimensions in cm, inch, or point */
 #define GMT_LEN_UNITS2	"efkMnu"	/* Distances in meter, foot, survey foot, km, Mile, nautical mile */
 #define GMT_LEN_UNITS	"dmsefkMnu"	/* Distances in arc-{degree,minute,second} or meter, foot, km, Mile, nautical mile, survey foot */
@@ -175,6 +209,9 @@ enum GMT_swap_direction {
 #define GMT_DAY2HR_F	24.0
 #define GMT_DAY2HR_I	24
 #define GMT_HR2DAY	(1.0 / GMT_DAY2HR_F)
+#define GMT_WEEK2DAY_F	7.0
+#define GMT_WEEK2DAY_I	7
+#define GMT_DAY2WEEK	(1.0 / GMT_WEEK2DAY_F)
 #define GMT_DAY2MIN_F	1440.0
 #define GMT_DAY2MIN_I	1440
 #define GMT_MIN2DAY	(1.0 / GMT_DAY2MIN_F)
@@ -215,15 +252,26 @@ enum GMT_swap_direction {
 #define GMT_CPT_TEMPORARY	1024	/* CPT was built from list of colors, e.g., red,green,255,blue,... */
 #define GMT_CPT_C_REVERSE	1	/* Reverse CPT colors */
 #define GMT_CPT_Z_REVERSE	2	/* Reverse CPT z-values */
+#define GMT_CPT_L_ANNOT		1	/* Annotate lower slice boundary */
+#define GMT_CPT_U_ANNOT		2	/* Annotate upper slice boundary */
+#define GMT_CPT_B_ANNOT		3	/* Annotate lower and upper slice boundary */
+#define GMT_CPT_CATEGORICAL_VAL		1	/* Categorical CPT with numerical value */
+#define GMT_CPT_CATEGORICAL_KEY		2	/* Categorical CPT with text key */
+#define GMT_COLOR_AUTO_TABLE		1	/* Flag in rgb for auto-color changing per table */
+#define GMT_COLOR_AUTO_SEGMENT		2	/* Flag in rgb for auto-color changing per segment */
+#define GMT_CPT_INDEX_LBL		0	/* Index into hidden alloc_mode_text[] for labels */
+#define GMT_CPT_INDEX_KEY		1	/* Index into hidden alloc_mode_text[] for keys */
 
-/* Default CPTs are initialized in gmt_init.c; see end of gmtinit_new_GMT_ctrl */
-#define GMT_DEFAULT_CPT		0	/* Default index into GMT->init.cpt[] array */
-#define GMT_N_CPT		3		/* Number of default CPT types (see GMT->init.cpt in gmt_init.c) */
+/* Default CPT if nothing specified or overruled by remote dataset preferences */
 #define GMT_DEFAULT_CPT_NAME	"turbo"
-#define GMT_DEM_CPT_NAME		"geo"
-#define GMT_SRTM_CPT_NAME		"srtm"
+/* Default color list (or cpt) for automatic, sequential color choices */
+#define GMT_DEFAULT_COLOR_SET	"#0072BD,#D95319,#EDB120,#7E2F8E,#77AC30,#4DBEEE,#A2142F"
+	
+/* CPT extension is pretty fixed */
+#define GMT_CPT_EXTENSION	".cpt"
+#define GMT_CPT_EXTENSION_LEN	4U
 
-#define GMT_IS_ROMAN_LCASE	1	/* For converting arabic numerals to Roman */
+#define GMT_IS_ROMAN_LCASE	1	/* For converting Arabic numerals to Roman */
 #define GMT_IS_ROMAN_UCASE	2
 
 /* Settings for the MAP_FRAME_TYPE = graph */
@@ -236,6 +284,34 @@ enum GMT_swap_direction {
 
 /* Fraction of increment to force outward region expansion */
 #define GMT_REGION_INCFACTOR 0.25
+
+/* Allowable refpoint codes */
+#define GMT_REFPOINT_CODES "gjJnx"
+
+/* Modifiers for contour -A option */
+#define GMT_CONTSPEC_MODS "acdefghijklLnNoprstuvwxX="
+
+/* Valid modifiers for various input files */
+
+/* Valid modifiers for -Tmin/max/inc array creator */
+#define GMT_ARRAY_MODIFIERS "abeilnt"
+
+/* Modifiers for grid files:
+ * +o<offset>  adds this offset to all grid values
+ * +n<nodata> sets what the no-data value is
+ * +s<scl> scales all grid values by this scale
+ * +u<unit> converts Cartesian x/y coordinates from given unit to meters
+ * +U<unit> converts Cartesian x/y coordinates from meter to given unit
+ */
+#define GMT_GRIDFILE_MODIFIERS "onsuU"
+
+/* Modifiers for CPT files:
+ * +h[<hinge>] to override soft-hinge value in CPT
+ * +i<dz> is used to round auto-determined min/max range to a multiple of dz.
+ * +u<unit> converts z-values from given unit to meters
+ * +U<unit> converts z-values from meter to given unit
+ */
+#define GMT_CPTFILE_MODIFIERS "hiuU"
 
 /*! Codes for grdtrack */
 enum GMT_enum_tracklayout {
@@ -306,8 +382,9 @@ enum GMT_enum_download {
 
 /*! Various mode for auto-legend pens */
 enum GMT_enum_autolegend {
-	GMT_LEGEND_PEN_D  = 0, GMT_LEGEND_PEN_V  = 1,
-	GMT_LEGEND_DRAW_D = 1, GMT_LEGEND_DRAW_V = 2};
+	GMT_LEGEND_PEN_D  = 0, GMT_LEGEND_PEN_V  = 1, GMT_LEGEND_PEN_P  = 2,
+	GMT_LEGEND_DRAW_D = 1, GMT_LEGEND_DRAW_V = 2, GMT_LEGEND_LABEL_FIXED = 0,
+	GMT_LEGEND_LABEL_FORMAT = 1, GMT_LEGEND_LABEL_LIST = 2, GMT_LEGEND_LABEL_HEADER = 3};
 
 /*! Various mode for custom symbols */
 enum GMT_enum_customsymb {
@@ -358,12 +435,21 @@ enum GMT_enum_runmode {
 enum GMT_enum_workflowmode {
 	GMT_USE_WORKFLOW = 0, 	/* Default is to use current workflow if initiated and ignore if otherwise */
 	GMT_BEGIN_WORKFLOW = 1,	/* Initiate a new workflow via gmt begin */
-	GMT_END_WORKFLOW = 2};  /* Terminate current workflow via gmt begin */
+	GMT_END_WORKFLOW = 2,  /* Terminate current workflow via gmt begin */
+	GMT_CLEAN_WORKFLOW = 4};  /* If given with BEGIN we ignore any gmt.conf files */
 
 /*! Selections for pen/fill color replacements in custom symbol macros */
 enum GMT_enum_colorswap {
 	GMT_USE_FILL_RGB  = 1,	/* Take pen color from that of the current fill */
 	GMT_USE_PEN_RGB = 2};	/* Take fill color from that of the current pen */
+
+/*! Index for fill/stroke transparency value */
+enum GMT_enum_transp {
+	GMT_FILL_TRANSP     = 0,	/* transp[GMT_FILL_TRANSP] is used for filling */
+	GMT_PEN_TRANSP      = 1,	/* transp[GMT_PEN_TRANSP] is used for stroking */
+	GMT_SET_FILL_TRANSP = 1,	/* Bit-flag for fill transparency */
+	GMT_SET_PEN_TRANSP  = 2,	/* Bit-flag for stroke transparency */
+	GMT_SET_ALL_TRANSP  = 3};	/* Bit-flag for both transparencies */
 
 /*! Various algorithms for triangulations */
 enum GMT_enum_tri {
@@ -375,13 +461,19 @@ enum GMT_enum_spline {
 	GMT_SPLINE_LINEAR = 0, /* Linear spline */
 	GMT_SPLINE_AKIMA,      /* Akima spline */
 	GMT_SPLINE_CUBIC,      /* Cubic spline */
+	GMT_SPLINE_SMOOTH,     /* Smooth cubic spline */
 	GMT_SPLINE_NN,         /* Nearest neighbor */
 	GMT_SPLINE_NONE};      /* No spline set */
+
+/*! Various 1-D interpolation derivatives */
+enum GMT_enum_derivative {
+	GMT_SPLINE_SLOPE = 10,		 /* Spline 1st derivative*/
+	GMT_SPLINE_CURVATURE = 20};   /* Spline 2nd derivative */
 
 enum GMT_enum_extrap {
 	GMT_EXTRAPOLATE_NONE = 0,   /* No extrapolation; set to NaN outside bounds */
 	GMT_EXTRAPOLATE_SPLINE,     /* Let spline extrapolate beyond bounds */
-	GMT_EXTRAPOLATE_CONSTANT};  /* Set extrapolation beyond bound to specifiec constant */
+	GMT_EXTRAPOLATE_CONSTANT};  /* Set extrapolation beyond bound to specific constant */
 
 enum GMT_enum_cross {
 	GMT_CROSS_NORMAL = 0,	/* Regular grid cross */
@@ -490,7 +582,7 @@ enum GMT_enum_inonout {GMT_IOO_UNKNOWN = 0,	/* Decide based on range and type */
 	GMT_IOO_SPHERICAL};			/* Use spherical inside function */
 
 enum GMT_enum_path {GMT_RESAMPLE_PATH = 0,	/* Default: Resample geographic paths based in a max gap allowed (path_step) */
-	GMT_LEAVE_PATH};	/* Options like -A can turn of this resampling, where available */
+	GMT_LEAVE_PATH};	/* Options like -A can turn off this resampling, where available */
 
 enum GMT_enum_stairpath {GMT_STAIRS_OFF = 0,	/* Default: No stairclimbing */
 	GMT_STAIRS_Y,	/* Move vertically (meridian) to next point along y, then horizontally along x */
@@ -530,15 +622,10 @@ enum GMT_enum_curl {GMT_REGULAR_FILE = 0,	/* Regular file the may or may not exi
 	GMT_DATA_FILE  = 2,	/* Official GMT data file destined for the user's user dir */
 	GMT_URL_FILE   = 3,	/* Data given by an URL destined for the cache */
 	GMT_URL_QUERY  = 4,	/* Data given by an URL CGI command destined for the cache */
-	GMT_CACHE_DIR  = 0,	/* Use the cache directory */
-	GMT_DATA_DIR   = 1,	/* Use the data directory */
-	GMT_LOCAL_DIR  = 2};	/* Use the local (current) directory */
-
-#define GMT_DATA_PREFIX "earth_relief_"				/* Special prefix for global relief data sets */
-#define GMT_SRTM_PREFIX "srtm_relief_"				/* Special prefix for srtm relief data sets when ocean is not requested */
-#define GMT_SRTM_EXTENSION_REMOTE  "jp2"			/* Tile extension of JPEG2000 files to be downloaded */
-#define GMT_SRTM_EXTENSION_REMOTE_LEN  4U			/* Length of JPEG2000 file extension (+1) */
-#define GMT_SRTM_EXTENSION_LOCAL "nc"				/* Tile extension of nc short int files to be saved */
-#define GMT_SRTM_EXTENSION_LOCAL_LEN 2U				/* Length of  nc short int file extension */
+	GMT_AUTO_DIR   = 0,	/* Use the directory given per internal rules */
+	GMT_CACHE_DIR  = 1,	/* Use the cache directory */
+	GMT_DATA_DIR   = 2,	/* Use the data directory */
+	GMT_LOCAL_DIR  = 3,	/* Use the local (current) directory */
+	GMT_REMOTE_DIR = 4}; /* File is on the remote server */
 
 #endif  /* GMT_CONSTANTS_H */

@@ -1,6 +1,6 @@
 /*--------------------------------------------------------------------
  *
- *	Copyright (c) 1991-2020 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
+ *	Copyright (c) 1991-2021 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
  *	See LICENSE.TXT file for copying and redistribution conditions.
  *
  *	This program is free software; you can redistribute it and/or modify
@@ -410,8 +410,8 @@ GMT_LOCAL int gmtproj_genper_tolatlong (struct GMT_CTRL *GMT, double x, double y
 	}
 	if (set_exit == 1) gmt_message (GMT, "gmtproj_genper_tolatlong - 5\n");
 	if (set_exit || GMT->current.proj.g_debug > 1) {
-		gmt_message (GMT, "phi    %12.7f\n", phi*R2D);
-		GMT_exit (GMT, GMT_PROJECTION_ERROR); return GMT_PROJECTION_ERROR;
+		gmt_message (GMT, "gmtproj_genper_tolatlong phi    %12.7f\n", phi*R2D);
+		return GMT_PROJECTION_ERROR;
 	}
 	*lat = phi * R2D;
 	*lon = atan2d (Y, X) + GMT->current.proj.g_lon0;
@@ -652,15 +652,17 @@ GMT_LOCAL void gmtproj_ipolar (struct GMT_CTRL *GMT, double *x, double *y, doubl
 
 /* -JM MERCATOR PROJECTION */
 
-GMT_LOCAL void gmtproj_vmerc (struct GMT_CTRL *GMT, double lon0, double slat) {
+GMT_LOCAL void gmtproj_vmerc (struct GMT_CTRL *GMT, double lon0, double lat0) {
 	/* Set up a Mercator transformation with origin at (lon0, lat0) */
 
-	if (GMT->current.proj.GMT_convert_latitudes) slat = gmt_M_latg_to_latc (GMT, slat);
+	double aux_lat0 = (GMT->current.proj.GMT_convert_latitudes) ? gmt_M_latg_to_latc (GMT, lat0) : lat0;
 
 	GMT->current.proj.central_meridian = lon0;
-	GMT->current.proj.j_x = cosd (slat) / d_sqrt (1.0 - GMT->current.proj.ECC2 * sind (slat) * sind (slat)) * GMT->current.proj.EQ_RAD;
+	/* Need geodetic latitude in this expression: */
+	GMT->current.proj.j_x = cosd (lat0) / d_sqrt (1.0 - GMT->current.proj.ECC2 * sind (lat0) * sind (lat0)) * GMT->current.proj.EQ_RAD;
 	GMT->current.proj.j_ix = 1.0 / GMT->current.proj.j_x;
-	GMT->current.proj.j_yc = (fabs (slat) > 0.0) ? GMT->current.proj.j_x * d_log (GMT, tand (45.0 + 0.5 * slat)) : 0.0;
+	/* Need conformal latitude in this expression (same as in gmtproj_merc_sph) */
+	GMT->current.proj.j_yc = (fabs (lat0) > 0.0) ? GMT->current.proj.j_x * d_log (GMT, tand (45.0 + 0.5 * aux_lat0)) : 0.0;
 }
 
 /* Mercator projection for the sphere */
@@ -672,14 +674,14 @@ GMT_LOCAL void gmtproj_merc_sph (struct GMT_CTRL *GMT, double lon, double lat, d
 	if (GMT->current.proj.GMT_convert_latitudes) lat = gmt_M_latg_to_latc (GMT, lat);
 
 	*x = GMT->current.proj.j_x * D2R * lon;
-	*y = (fabs (lat) < 90.0) ? GMT->current.proj.j_x * d_log (GMT, tand (45.0 + 0.5 * lat)) - GMT->current.proj.j_yc : copysign (DBL_MAX, lat);
+	*y = (fabs (lat) < 90.0) ? GMT->current.proj.j_x * d_log (GMT, tand (45.0 + 0.5 * lat)) : copysign (DBL_MAX, lat);
 }
 
 GMT_LOCAL void gmtproj_imerc_sph (struct GMT_CTRL *GMT, double *lon, double *lat, double x, double y) {
 	/* Convert Mercator x/y to lon/lat  (GMT->current.proj.EQ_RAD in GMT->current.proj.j_ix) */
 
 	*lon = x * GMT->current.proj.j_ix * R2D + GMT->current.proj.central_meridian;
-	*lat = atand (sinh ((y + GMT->current.proj.j_yc) * GMT->current.proj.j_ix));
+	*lat = atand (sinh (y * GMT->current.proj.j_ix));
 	if (GMT->current.proj.GMT_convert_latitudes) *lat = gmt_M_latc_to_latg (GMT, *lat);
 }
 
@@ -2589,9 +2591,9 @@ double gmtproj_left_robinson (struct GMT_CTRL *GMT, double y) {
 	y -= GMT->current.proj.origin[GMT_Y];
 	y *= GMT->current.proj.i_scale[GMT_Y];
 	Y = fabs (y * GMT->current.proj.n_i_cy);
-	if (gmt_intpol (GMT, GMT->current.proj.n_Y, GMT->current.proj.n_X, GMT_N_ROBINSON, 1, &Y, &X, GMT->current.setting.interpolant)) {
+	if (gmt_intpol (GMT, GMT->current.proj.n_Y, GMT->current.proj.n_X, NULL, GMT_N_ROBINSON, 1, &Y, &X, 0.0, GMT->current.setting.interpolant)) {
 		gmt_message (GMT, "GMT Internal error in gmtproj_left_robinson!\n");
-		GMT_exit (GMT, GMT_PROJECTION_ERROR); return GMT->session.d_NaN;
+		return GMT->session.d_NaN;
 	}
 
 	x = GMT->current.proj.n_cx * X * (GMT->common.R.wesn[XLO] - GMT->current.proj.central_meridian);
@@ -2604,9 +2606,9 @@ double gmtproj_right_robinson (struct GMT_CTRL *GMT, double y) {
 	y -= GMT->current.proj.origin[GMT_Y];
 	y *= GMT->current.proj.i_scale[GMT_Y];
 	Y = fabs (y * GMT->current.proj.n_i_cy);
-	if (gmt_intpol (GMT, GMT->current.proj.n_Y, GMT->current.proj.n_X, GMT_N_ROBINSON, 1, &Y, &X, GMT->current.setting.interpolant)) {
+	if (gmt_intpol (GMT, GMT->current.proj.n_Y, GMT->current.proj.n_X, NULL, GMT_N_ROBINSON, 1, &Y, &X, 0.0, GMT->current.setting.interpolant)) {
 		gmt_message (GMT, "GMT Internal error in gmtproj_right_robinson!\n");
-		GMT_exit (GMT, GMT_PROJECTION_ERROR); return GMT->session.d_NaN;
+		return GMT->session.d_NaN;
 	}
 
 	x = GMT->current.proj.n_cx * X * (GMT->common.R.wesn[XHI] - GMT->current.proj.central_meridian);

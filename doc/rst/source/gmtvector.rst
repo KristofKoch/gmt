@@ -15,7 +15,7 @@ Synopsis
 **gmt vector** [ *tables* ] [ |-A|\ **m**\ [*conf*]\|\ *vector* ]
 [ |-C|\ [**i**\|\ **o**] ]
 [ |-E| ] [ |-N| ] [ |-S|\ *vector* ]
-[ |-T|\ **a**\|\ **d**\|\ **D**\|\ **p**\ *az*\|\ **r**\ [*arg*\|\ **R**\|\ **s**\|\ **x**] ]
+[ |-T|\ **a**\|\ **d**\|\ **D**\|\ **p**\ *az*\|\ **r**\ [*arg*]\|\ **R**\|\ **s**\|\ **t**\ [*arg*]\|\ **x** ]
 [ |SYN_OPT-V| ]
 [ |SYN_OPT-b| ]
 [ |SYN_OPT-d| ]
@@ -24,6 +24,7 @@ Synopsis
 [ |SYN_OPT-g| ]
 [ |SYN_OPT-h| ]
 [ |SYN_OPT-i| ]
+[ |SYN_OPT-j| ]
 [ |SYN_OPT-o| ]
 [ |SYN_OPT-q| ]
 [ |SYN_OPT-:| ]
@@ -52,17 +53,15 @@ which requests (x, y[, z]) Cartesian coordinates.
 Required Arguments
 ------------------
 
-None.
-
-Optional Arguments
-------------------
-
 *table*
     One or more ASCII [or binary, see **-bi**]
     file containing lon,lat [lat,lon if **-:**] values in the first 2
     columns (if **-fg** is given) or (r, theta), or perhaps (x, y[, z])
     if **-Ci** is given). If no file is specified, **vector**, will
     read from standard input.
+
+Optional Arguments
+------------------
 
 .. _-A:
 
@@ -106,7 +105,7 @@ Optional Arguments
 
 .. _-T:
 
-**-T**\ **a**\|\ **d**\|\ **D**\|\ **p**\ *az*\|\ **s**\|\ **r**\ [*arg*\|\ **R**\|\ **x**]
+**-T**\ **a**\|\ **d**\|\ **D**\|\ **p**\ *az*\|\ **s**\|\ **r**\ [*arg*]\|\ **R**\|\ **s**\|\ **t**\ [*arg*]\|\ **x**
     Specify the vector transformation of interest. Append **a** for
     average, **b** for the pole of the two points bisector, **d** for
     dot product (use **D** to get angle in degrees between the two
@@ -115,15 +114,20 @@ Optional Arguments
     **r**\ *par* for vector rotation (here, *par* is a single
     angle for 2-D Cartesian data and *lon/lat/angle* for a 3-D rotation
     pole and angle), **R** will instead rotate the fixed secondary vector
-    by the rotations implied by the input records, and **x** for cross-product.
+    by the rotations implied by the input records, **t** to translate
+    the input point by *distance* in the *azimuth* direction (append *azimuth*/*distance*\ [*unit*]
+    for the same translation for all input points, or just append
+    *unit* to read *azimuth* and *distance* (in specified *unit* [**e**])
+    from the third and fourth data column in the file, and **x** for cross-product.
     If **-T** is not given then no transformation takes place; the
     output is determined by other options such as **-A**, **-C**,
-    **-E**, and **-N**.
+    **-E**, and **-N**. **Note**: For **-Tt** and geographic coordinates we will
+    perform a great circle calculation unless **-je** is selected.
 
-.. _-V:
-
-.. |Add_-V| unicode:: 0x20 .. just an invisible code
+.. |Add_-V| replace:: |Add_-V_links|
 .. include:: explain_-V.rst_
+    :start-after: **Syntax**
+    :end-before: **Description**
 
 .. |Add_-bi| replace:: [Default is 2 or 3 input columns].
 .. include:: explain_-bi.rst_
@@ -144,6 +148,8 @@ Optional Arguments
 .. include:: explain_-h.rst_
 
 .. include:: explain_-icols.rst_
+
+.. include:: explain_distcalc.rst_
 
 .. include:: explain_-ocols.rst_
 
@@ -167,58 +173,53 @@ as well as the 95% confidence ellipse around that point, try::
 
 Suppose you have a file with lon, lat called points.txt. You want to
 compute the spherical angle between each of these points and the
-location 133/34. Try
-
-   ::
+location 133/34. Try::
 
     gmt vector points.txt -S133/34 -TD -fg > angles.txt
 
 To rotate the same points 35 degrees around a pole at 133/34, and output
-Cartesian 3-D vectors, use
-
-   ::
+Cartesian 3-D vectors, use::
 
     gmt vector points.txt -Tr133/34/35 -Co -fg > reconstructed.txt
 
-To rotate the point 65/33 by all rotations given in file rots.txt, use
-
-   ::
+To rotate the point 65/33 by all rotations given in file rots.txt, use::
 
     gmt vector rots.txt -TR -S64/33 -fg > reconstructed.txt
 
 To compute the cross-product between the two Cartesian vectors 0.5/1/2
-and 1/0/0.4, and normalizing the result, try
-
-   ::
+and 1/0/0.4, and normalizing the result, try::
 
     gmt vector -A0.5/1/2 -Tx -S1/0/0.4 -N -C > cross.txt
 
 To rotate the 2-D vector, given in polar form as r = 2 and theta = 35,
-by an angle of 120, try
-
-   ::
+by an angle of 120, try::
 
     gmt vector -A2/35 -Tr120 > rotated.txt
 
-To find the mid-point along the great circle connecting the points 123/35 and -155/-30, use
-
-   ::
+To find the mid-point along the great circle connecting the points 123/35 and -155/-30, use::
 
     gmt vector -A123/35 -S-155/-30 -Ta -fg > midpoint.txt
 
 To find the mean location of the geographical points listed in
-points.txt, with its 99% confidence ellipse, use
-
-   ::
+points.txt, with its 99% confidence ellipse, use::
 
     gmt vector points.txt -Am99 -fg > centroid.txt
 
 To find the pole corresponding to the great circle that goes through
-the point -30/60 at an azimuth of 105 degrees, use
-
-   ::
+the point -30/60 at an azimuth of 105 degrees, use::
 
     gmt vector -A-30/60 -Tp105 -fg > pole.txt
+
+To translate all locations in the geographic file points.txt
+by 65 km to the NE on a spherical Earth, try::
+
+    gmt vector points -Tt45/65k -fg > shifted.txt
+
+
+To determine the point that is 23 nautical miles along a geodesic
+with a bearing of 310 degrees from the origin at (8E, 50N), try::
+
+    echo 8 50 | gmt vector -Tt310/23n -je
 
 Rotations
 ---------

@@ -1,6 +1,6 @@
 /*--------------------------------------------------------------------
  *
- *	Copyright (c) 1991-2020 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
+ *	Copyright (c) 1991-2021 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
  *	See LICENSE.TXT file for copying and redistribution conditions.
  *
  *	This program is free software; you can redistribute it and/or modify
@@ -28,7 +28,7 @@
 #define THIS_MODULE_MODERN_NAME	"solar"
 #define THIS_MODULE_LIB		"core"
 #define THIS_MODULE_PURPOSE	"Plot day-light terminators and other sunlight parameters"
-#define THIS_MODULE_KEYS	">X},>DI,>DM@ID),MD)"
+#define THIS_MODULE_KEYS	">X},>DI,>DM"
 #define THIS_MODULE_NEEDS	"JR"
 #define THIS_MODULE_OPTIONS "->BJKOPRUVXYbpto" GMT_OPT("c")
 
@@ -135,7 +135,7 @@ static int usage (struct GMTAPI_CTRL *API, int level) {
 	GMT_Message (API, GMT_TIME_NONE, "\t   Add +d<date> in ISO format, e.g, +d2000-04-25, to compute sun parameters\n");
 	GMT_Message (API, GMT_TIME_NONE, "\t   for this date. If necessary, append time zone via +z<TZ>.\n");
 	GMT_Option (API, "J,K");
-	GMT_Message (API, GMT_TIME_NONE, "\t-M Write terminator(s) as a multisegment ASCII (or binary, see -bo) file to standard output. No plotting occurs.\n");
+	GMT_Message (API, GMT_TIME_NONE, "\t-M Write terminator(s) as a multisegment ASCII (or binary, see -bo) polygons to standard output. No plotting occurs.\n");
 	GMT_Message (API, GMT_TIME_NONE, "\t-N Use the outside of the polygons and the map boundary as clip paths.\n");
 	GMT_Option (API, "O,P,R");
 	GMT_Message (API, GMT_TIME_NONE, "\t-T <dcna> Plot (or dump; see -M) one or more terminators defined via these flags:\n");
@@ -297,7 +297,7 @@ GMT_LOCAL int pssolar_params (struct PSSOLAR_CTRL *Ctrl, struct SUN_PARAMS *Sun)
 	double EEO, HA_Sunrise, TrueSolarTime, SolarDec, radius;
 
 	radius = Ctrl->T.radius[Ctrl->T.which];
-	TZ = (Ctrl->I.TZ != 0) ? Ctrl->I.TZ : ((Ctrl->T.TZ != 0) ? Ctrl->I.TZ : 0);
+	TZ = (Ctrl->I.TZ != 0) ? Ctrl->I.TZ : ((Ctrl->T.TZ != 0) ? Ctrl->T.TZ : 0);
 
 	/*  Date info may be in either of I or T options. If not, use current time. */
 	if (Ctrl->I.calendar.year != 0) {
@@ -507,7 +507,7 @@ EXTERN_MSC int GMT_pssolar (void *V_API, int mode, void *args) {
 			}
 		}
 	}
-	else if (Ctrl->M.active) {						/* Dump terminator(s) to stdout, no plotting takes place */
+	else if (Ctrl->M.active) {						/* Dump terminator(s) polygons to stdout; no plotting takes place */
 		int n_items;
 		char  *terms[4] = {"Day/night", "Civil", "Nautical", "Astronomical"};
 		double out[2];
@@ -538,7 +538,7 @@ EXTERN_MSC int GMT_pssolar (void *V_API, int mode, void *args) {
 			S = gmt_get_smallcircle (GMT, -Sun->HourAngle, Sun->SolarDec, Sun->radius, n_pts);
 			sprintf (record, "%s terminator", terms[n]);
 			GMT_Put_Record (API, GMT_WRITE_SEGMENT_HEADER, record);
-			for (j = 0; j < n_pts; j++) {
+			for (j = 0; j < S->n_rows; j++) {
 				out[GMT_X] = S->data[GMT_X][j];	out[GMT_Y] = S->data[GMT_Y][j];
 				GMT_Put_Record (API, GMT_WRITE_DATA, Out);
 			}
@@ -552,13 +552,15 @@ EXTERN_MSC int GMT_pssolar (void *V_API, int mode, void *args) {
 		double *lon = NULL, *lat = NULL, x0, y0;
 		unsigned int first = (Ctrl->N.active) ? 0 : 1;
 
-		if (gmt_M_err_pass (GMT, gmt_map_setup (GMT, GMT->common.R.wesn), "")) {
+		if (gmt_map_setup (GMT, GMT->common.R.wesn)) {
 			gmt_M_free (GMT, Sun);
 			Return (GMT_PROJECTION_ERROR);
 		}
 		if ((PSL = gmt_plotinit (GMT, options)) == NULL) Return (GMT_RUNTIME_ERROR);
 		gmt_plane_perspective (GMT, GMT->current.proj.z_project.view_plane, GMT->current.proj.z_level);
+		gmt_set_basemap_orders (GMT, Ctrl->N.active ? GMT_BASEMAP_FRAME_BEFORE : GMT_BASEMAP_FRAME_AFTER, GMT_BASEMAP_GRID_AFTER, Ctrl->N.active ? GMT_BASEMAP_ANNOT_BEFORE : GMT_BASEMAP_ANNOT_AFTER);
 		gmt_plotcanvas (GMT);	/* Fill canvas if requested */
+		gmt_map_basemap (GMT);
 		if (Ctrl->N.active) gmt_map_clip_on (GMT, GMT->session.no_rgb, 1);	/* Must clip map */
 
 		for (n = 0; n < 4; n++) {	/* Loop over the number of requested terminators */
@@ -566,6 +568,7 @@ EXTERN_MSC int GMT_pssolar (void *V_API, int mode, void *args) {
 			Ctrl->T.which = n;
 			pssolar_params (Ctrl, Sun);
 			S = gmt_get_smallcircle (GMT, -Sun->HourAngle, Sun->SolarDec, Sun->radius, n_pts);
+			GMT_Report (API, GMT_MSG_INFORMATION, "Plot small circle with pole at %g/%g and radius %g degrees\n",  -Sun->HourAngle, Sun->SolarDec, Sun->radius);
 			if (Ctrl->G.clip) {	/* Set up a clip path */
 				bool must_free = true;
 				if ((n_pts = (int)gmt_geo_polarcap_segment (GMT, S, &lon, &lat)) == 0) {	/* No resampling took place */

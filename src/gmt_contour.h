@@ -1,6 +1,6 @@
 /*--------------------------------------------------------------------
  *
- *	Copyright (c) 1991-2020 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
+ *	Copyright (c) 1991-2021 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
  *	See LICENSE.TXT file for copying and redistribution conditions.
  *
  *	This program is free software; you can redistribute it and/or modify
@@ -160,6 +160,7 @@ struct GMT_CONTOUR {
 	struct GMT_XOVER XC;		/* Structure with resulting crossovers */
 	struct GMT_PEN pen;		/* Pen for drawing textbox outline */
 	struct GMT_PEN line_pen;	/* Pen for drawing the contour line */
+	struct GMT_PEN debug_pen;	/* Pen for drawing the debugging lines */
 	struct GMT_LABEL **L;		/* Pointers to sorted list of labels */
 	struct GMT_DATASET *Out;	/* Textset with positions, angles and labels used in contouring */
 	/* Contour line section */

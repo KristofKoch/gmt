@@ -1,6 +1,6 @@
 /*--------------------------------------------------------------------
  *
- *	Copyright (c) 1991-2020 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
+ *	Copyright (c) 1991-2021 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
  *	See LICENSE.TXT file for copying and redistribution conditions.
  *
  *	This program is free software; you can redistribute it and/or modify
@@ -53,6 +53,12 @@ enum gmt_enum_panel {
 	GMT_PANEL_OUTLINE	= 16
 };
 
+enum gmt_enum_scale_orig {
+	GMT_SCALE_ORIGIN_GIVEN = 0,
+	GMT_SCALE_ORIGIN_PLACE = 1,
+	GMT_SCALE_ORIGIN_MIDDLE = 2
+};
+
 /*! Definition of structure used for holding information about a reference point */
 struct GMT_REFPOINT {	/* Used to hold items relevant for a reference point */
 	double x;		/* X position of reference point */
@@ -70,12 +76,21 @@ enum gmt_enum_custsymb {
 	GMT_VAR_SIZE		= -3,	/* We have the symbol size $s in a conditional test */
 	GMT_VAR_IS_Y		= -2,	/* We have y or latitude in a conditional test */
 	GMT_VAR_IS_X		= -1,	/* We have x or longitude in a conditional test */
+	GMT_VAR_WORD		= 64,	/* We have a variable string (the trailing text) in a conditional test and we want a particular word */
 	GMT_CONST_VAR		=  0,	/* We have a constant factor in a conditional test */
 	GMT_BEGIN_SINGLE_IF	=  1,	/* We have a single, 1-liner if condition, with no end if */
 	GMT_BEGIN_BLOCK_IF	=  2,	/* Starting a new if branch */
 	GMT_END_IF		=  4,	/* Ending an if branch */
 	GMT_END_IF_ELSE		=  6,	/* Ending an if-branch and start the else branch */
 	GMT_BEGIN_ELSEIF	=  8	/* Ending the if-branch and start another if branch */
+};
+
+ struct GMT_CUSTOM_SYMBOL_EPS {
+ 	bool GMT_made;	/* True if the EPS was made by GMT modules */
+ 	bool placed;	/* True after we place the EPS code in the output PS file */
+	char *name;		/* Name of the EPS macro file */
+	char  *macro;	/* Contains all the EPS commands in one array */
+ 	double BB[4];	/* Will hold the BoundingBox as [x0 x1 y0 y1] */
 };
 
 struct GMT_CUSTOM_SYMBOL_ITEM {
@@ -88,19 +103,17 @@ struct GMT_CUSTOM_SYMBOL_ITEM {
 	struct GMT_PEN *pen;
 	struct GMT_CUSTOM_SYMBOL_ITEM *next;
 	struct GMT_FONT font;	/* Font to use for the l macro */
+	struct GMT_CUSTOM_SYMBOL_EPS *eps;
 	char action;
 	char *string;
 };
 
 struct GMT_CUSTOM_SYMBOL {
 	char          name[GMT_LEN64];	/* Name of this symbol (i.e., just the <name> in [<dir>/]<name>.def) */
-	char         *PS_macro;   	/* Contains all the PS commands if PS is true */
 	unsigned int  n_required;   /* Number of additional columns necessary to decode chosen symbol */
 	unsigned int  start;    /* Column number of first additional column [2-4 depending on -C and psxy vs psxyz] */
-	unsigned int  PS;       /* nonzero if a PSL symbol */
 	unsigned int  text;     /* >0 if symbol places text and hence need fonts to be set properly, 2 if using trailing text */
-	unsigned int *type;     /* Array with type of each parameter [0 = dimensionless, 1 = dimension, 2 = geographic angle (convert via projection)] */
-	double        PS_BB[4]; /* Will hold the BoundingBox as [x0 x1 y0 y1] if PS is true */
+	unsigned int  *type;    /* Array with type of each parameter [0 = dimensionless, 1 = dimension, 2 = geographic angle (convert via projection)] */
 	struct        GMT_CUSTOM_SYMBOL_ITEM *first;
 };
 
@@ -113,6 +126,7 @@ struct GMT_MAP_PANEL {
 	double off[2];			/* Offset for background shaded rectangle (+s) */
 	double gap;			/* Space between main and secondary frame */
 	struct GMT_PEN pen1, pen2;	/* Pen for main and secondary frame outline */
+	struct GMT_PEN debug_pen;	/* Pen for debug lines */
 	struct GMT_FILL fill;		/* Frame fill */
 	struct GMT_FILL sfill;		/* Background shade */
 	bool clearance;			/* Used by pslegend since it has the -C option as well */
@@ -150,6 +164,7 @@ struct GMT_MAP_SCALE {
 	bool vertical;		/* Want a Cartesian vertical scale (i.e., for y-data) */
 	bool zdata;		/* z-data vertical scale (i.e., for z-data in pswiggle) */
 	int justify;		/* Justification of anchor point */
+	int origin_mode;	/* 0 gave scale origin, 1 select same as placement point, 2 use mid-plot location for scale origin */
 	char measure;		/* The unit, i.e., e|f|k|M|n|u */
 	char alignment;		/* Placement of label: t(op), b(ottom), l(eft), r(ight) */
 	char label[GMT_LEN128];	/* Alternative user-specified label */

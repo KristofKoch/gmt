@@ -1,6 +1,6 @@
 /*--------------------------------------------------------------------
  *
- *	Copyright (c) 1991-2020 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
+ *	Copyright (c) 1991-2021 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
  *	See LICENSE.TXT file for copying and redistribution conditions.
  *
  *	This program is free software; you can redistribute it and/or modify
@@ -161,6 +161,7 @@ struct GMT_CTRL; /* forward declaration of GMT_CTRL */
 #include "gmt_plot.h"           /* extern functions defined in gmt_plot.c */
 #include "gmt_memory.h"         /* extern functions defined in gmt_M_memory.c */
 #include "gmt_types.h"          /* GMT type declarations */
+#include "gmt_remote.h"         /* GMT remote dataset structure */
 
 #ifdef _OPENMP                  /* Using open MP parallelization */
 #include <omp.h>

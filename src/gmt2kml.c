@@ -1,6 +1,6 @@
 /*--------------------------------------------------------------------
  *
- *	Copyright (c) 1991-2020 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
+ *	Copyright (c) 1991-2021 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
  *	See LICENSE.TXT file for copying and redistribution conditions.
  *
  *	This program is free software; you can redistribute it and/or modify
@@ -300,11 +300,12 @@ static int parse (struct GMT_CTRL *GMT, struct GMT2KML_CTRL *Ctrl, struct GMT_OP
 		switch (opt->option) {
 
 			case '<':	/* Input files */
-				if (!gmt_check_filearg (GMT, '<', opt->arg, GMT_IN, GMT_IS_DATASET))
+				if (n_files++ > 0) break;
+				if (opt->arg[0]) Ctrl->In.file = strdup (opt->arg);
+				if (GMT_Get_FilePath (GMT->parent, GMT_IS_DATASET, GMT_IN, GMT_FILE_REMOTE, &(Ctrl->In.file)))
 					n_errors++;
-				else if (n_files == 0)	/* Just keep name of first file */
-					Ctrl->In.file = strdup (opt->arg);
-				n_files++;
+				else
+					Ctrl->In.active = true;
 				break;
 
 			/* Processes program-specific parameters */
@@ -929,14 +930,14 @@ EXTERN_MSC int GMT_gmt2kml (void *V_API, int mode, void *args) {
 	strcpy (GMT->current.setting.format_float_out, "%.12g");	/* Make sure we use enough decimals */
 	t1_col = 2 + get_z;
 	t2_col = 3 + get_z;
-	if (Ctrl->F.mode == EVENT || Ctrl->F.mode == SPAN) gmt_set_column (GMT, GMT_IO, t1_col, GMT_IS_ABSTIME);
-	if (Ctrl->F.mode == SPAN) gmt_set_column (GMT, GMT_IO, t2_col, GMT_IS_ABSTIME);
+	if (Ctrl->F.mode == EVENT || Ctrl->F.mode == SPAN) gmt_set_column_type (GMT, GMT_IO, t1_col, GMT_IS_ABSTIME);
+	if (Ctrl->F.mode == SPAN) gmt_set_column_type (GMT, GMT_IO, t2_col, GMT_IS_ABSTIME);
 
 	if (Ctrl->F.mode == WIGGLE) {	/* Adjust wiggle scale for units and then take inverse */
 		char unit_name[GMT_LEN16] = {""};
 		gmt_check_scalingopt (GMT, 'Q', Ctrl->Q.unit, unit_name);
 		GMT_Report (API, GMT_MSG_INFORMATION, "Wiggle scale given as %g z-data units per %s.\n", Ctrl->Q.scale, unit_name);
-		gmt_init_distaz (GMT, Ctrl->Q.unit, Ctrl->Q.dmode, GMT_MAP_DIST);	/* Initialize distance machinery */
+		if (gmt_init_distaz (GMT, Ctrl->Q.unit, Ctrl->Q.dmode, GMT_MAP_DIST) == GMT_NOT_A_VALID_TYPE) Return (GMT_NOT_A_VALID_TYPE);	/* Initialize distance machinery */
 		Ctrl->Q.scale = 1.0 / Ctrl->Q.scale;	/* Now in map-distance units (i.e, unit they appended) per users data units */
 		GMT_Report (API, GMT_MSG_INFORMATION, "Wiggle scale inverted as %g %s per z-data units.\n", Ctrl->Q.scale, unit_name);
 		/* Convert to degrees per user data unit - this is our scale that converts z-data to degree distance latitude */

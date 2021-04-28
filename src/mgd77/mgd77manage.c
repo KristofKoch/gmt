@@ -1,6 +1,6 @@
 /*--------------------------------------------------------------------
  *
- *    Copyright (c) 2005-2020 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
+ *    Copyright (c) 2005-2021 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
  * mgd77manage is used to (1) remove data columns from mgd77+ files
  * or (2) add a new data column to mgd77+ files.  Data can be added
  * from data tables, created from reference field formulas, or by
@@ -666,7 +666,7 @@ EXTERN_MSC int GMT_mgd77manage (void *V_API, int mode, void *args) {
 		colvalue = gmt_M_memory (GMT, NULL, n_alloc, double);
 		if (two_cols) {	/* Got an abscissae column as well (dnt: d = dist, n = rec number, t = time) */
 			coldnt = gmt_M_memory (GMT, NULL, n_alloc, double);
-			gmt_set_column (GMT, GMT_IN, GMT_X, Ctrl->A.kind);
+			gmt_set_column_type (GMT, GMT_IN, GMT_X, Ctrl->A.kind);
 		}
 		if (strings && !two_cols) {	/* Must read strings directly from file since GMT->current.io.input would barf */
 			ok_to_read = false;
@@ -702,7 +702,7 @@ EXTERN_MSC int GMT_mgd77manage (void *V_API, int mode, void *args) {
 				gmt_M_free (GMT, colvalue);
 				if (two_cols) gmt_M_free (GMT, coldnt);
 				if (strings) gmt_M_free (GMT, tmp_string);
-				GMT_exit (GMT, GMT_RUNTIME_ERROR); return GMT_RUNTIME_ERROR;
+				Return (GMT_RUNTIME_ERROR);
 			}
 
 			if (strings) {	/* number in col1, string in col2 */
@@ -763,7 +763,10 @@ EXTERN_MSC int GMT_mgd77manage (void *V_API, int mode, void *args) {
 
 		if (MGD77_Read_File (GMT, list[argno], &In, D)) {
 			GMT_Report (API, GMT_MSG_ERROR, "Failure while reading data set for cruise %s\n", list[argno]);
-			GMT_exit (GMT, GMT_DATA_READ_ERROR); return GMT_DATA_READ_ERROR;
+			MGD77_Free_Dataset (GMT, &D);
+			gmt_M_free (GMT, colvalue);
+			if (tmp_string) gmt_M_free (GMT, tmp_string);
+			Return (GMT_DATA_READ_ERROR);
 		}
 
 		/* Start reading data from file */
@@ -773,14 +776,16 @@ EXTERN_MSC int GMT_mgd77manage (void *V_API, int mode, void *args) {
 
 		if (Ctrl->A.mode != MODE_e && column != MGD77_NOT_SET) {	/* A column with same abbreviation is already present in the file */
 			if (set == MGD77_M77_SET && !Ctrl->F.active) {
-				GMT_Report (API, GMT_MSG_ERROR, "Column %s is part of the standard MGD77 set and cannot be removed unless you use -F!\n",
-				            Ctrl->I.c_abbrev);
-				GMT_exit (GMT, GMT_RUNTIME_ERROR); return GMT_RUNTIME_ERROR;
+				GMT_Report (API, GMT_MSG_ERROR, "Column %s is part of the standard MGD77 set and cannot be removed unless you use -F!\n", Ctrl->I.c_abbrev);
+				MGD77_Free_Dataset (GMT, &D);
+				if (tmp_string) gmt_M_free (GMT, tmp_string);
+				Return (GMT_RUNTIME_ERROR);
 			}
 			if (!Ctrl->A.replace) {
 				GMT_Report (API, GMT_MSG_ERROR, "A columned named %s is already present in %s.  use -A+ to overwrite [default is to skip]\n",
 				            Ctrl->I.c_abbrev, list[argno]);
 				MGD77_Free_Dataset (GMT, &D);	/* Free memory already allocated by MGD77_Read_File for this aborted effort */
+				if (tmp_string) gmt_M_free (GMT, tmp_string);
 				continue;
 			}
 			n_dims = (D->H.info[In.order[column].set].col[In.order[column].item].constant) ? 0 : 1;
@@ -837,7 +842,9 @@ EXTERN_MSC int GMT_mgd77manage (void *V_API, int mode, void *args) {
 
 			sprintf (oldfile, "%s.old", In.path);
 			if (gmt_rename_file (GMT, In.path, oldfile, GMT_RENAME_FILE)) {
-				GMT_exit (GMT, GMT_RUNTIME_ERROR); return GMT_RUNTIME_ERROR;
+				MGD77_Free_Dataset (GMT, &D);
+				if (tmp_string) gmt_M_free (GMT, tmp_string);
+				Return (GMT_RUNTIME_ERROR);
 			}
 
 			/* Update header history */
@@ -851,14 +858,18 @@ EXTERN_MSC int GMT_mgd77manage (void *V_API, int mode, void *args) {
 
 			if (MGD77_Write_File (GMT, In.path, &In, D)) {	/* Create the new, slimmer file */
 				GMT_Report (API, GMT_MSG_ERROR, "Failure while writing slimmer version of %s\n", list[argno]);
-				GMT_exit (GMT, GMT_DATA_WRITE_ERROR); return GMT_DATA_WRITE_ERROR;
+				MGD77_Free_Dataset (GMT, &D);
+				if (tmp_string) gmt_M_free (GMT, tmp_string);
+				Return (GMT_DATA_WRITE_ERROR);
 			}
 
 			/* Now we can safely remove the old file */
 
 			if (gmt_remove_file (GMT, oldfile))	{
 				GMT_Report (API, GMT_MSG_ERROR, "Failure while removing the old version of %s\n", list[argno]);
-				GMT_exit (GMT, GMT_RUNTIME_ERROR); return GMT_RUNTIME_ERROR;
+				MGD77_Free_Dataset (GMT, &D);
+				if (tmp_string) gmt_M_free (GMT, tmp_string);
+				Return (GMT_RUNTIME_ERROR);
 			}
 
 			MGD77_Free_Dataset (GMT, &D);
@@ -870,7 +881,8 @@ EXTERN_MSC int GMT_mgd77manage (void *V_API, int mode, void *args) {
 			D = MGD77_Create_Dataset (GMT);
 			if (MGD77_Read_File (GMT, list[argno], &In, D)) {
 				GMT_Report (API, GMT_MSG_ERROR, "Failure while reading data set for cruise %s\n", list[argno]);
-				GMT_exit (GMT, GMT_DATA_READ_ERROR); return GMT_DATA_READ_ERROR;
+				MGD77_Free_Dataset (GMT, &D);
+				Return (GMT_DATA_READ_ERROR);
 			}
 			if (reset_column)
 				column = MGD77_NOT_SET;
@@ -1011,7 +1023,7 @@ EXTERN_MSC int GMT_mgd77manage (void *V_API, int mode, void *args) {
 			if (n != D->H.n_records) {
 				GMT_Report (API, GMT_MSG_ERROR, "Extra column data records (%d) do not match # of cruise records (%d) for %s\n",
 				            n, D->H.n_records, list[argno]);
-				GMT_exit (GMT, GMT_RUNTIME_ERROR); return GMT_RUNTIME_ERROR;
+				Return (GMT_RUNTIME_ERROR);
 			}
 			GMT_Report (API, GMT_MSG_INFORMATION, "Appended column data for all %d records for cruise %s\n", D->H.n_records, list[argno]);
 		}
@@ -1025,8 +1037,10 @@ EXTERN_MSC int GMT_mgd77manage (void *V_API, int mode, void *args) {
 				if ((iy = mgd77manage_skip_if_missing (GMT, "lat", list[argno], &In, &D)) == MGD77_NOT_SET) continue;
 				x = D->values[ix];
 				y = D->values[iy];
-				if ((d = gmt_dist_array_2 (GMT, x, y, D->H.n_records, dist_scale, GMT->common.h.mode)) == NULL)
-					gmt_M_err_fail (GMT, GMT_MAP_BAD_DIST_FLAG, "");
+				if ((d = gmt_dist_array_2 (GMT, x, y, D->H.n_records, dist_scale, GMT->common.h.mode)) == NULL) {
+					error = gmt_M_err_fail (GMT, GMT_MAP_BAD_DIST_FLAG, "");
+					Return (error);
+				}
 				x = d;
 			}
 			else if (Ctrl->A.mode == MODE_t) {	/* Time */
@@ -1035,10 +1049,10 @@ EXTERN_MSC int GMT_mgd77manage (void *V_API, int mode, void *args) {
 			}
 			if (Ctrl->A.interpolate) {	/* Using given table to interpolate the values at all mgd77 records */
 				y = gmt_M_memory (GMT, NULL, D->H.n_records, double);
-				result = gmt_intpol (GMT, coldnt, colvalue, n, D->H.n_records, x, y, GMT->current.setting.interpolant);
+				result = gmt_intpol (GMT, coldnt, colvalue, NULL, n, D->H.n_records, x, y, 0.0, GMT->current.setting.interpolant);
 				if (result != 0) {
 					GMT_Report (API, GMT_MSG_ERROR, "Failure in gmt_intpol near row %d!\n", result+1);
-					GMT_exit (GMT, GMT_RUNTIME_ERROR); return GMT_RUNTIME_ERROR;
+				Return (GMT_RUNTIME_ERROR);
 				}
 				gmt_M_memcpy (colvalue, y, D->H.n_records, double);
 				gmt_M_free (GMT, y);
@@ -1208,7 +1222,7 @@ EXTERN_MSC int GMT_mgd77manage (void *V_API, int mode, void *args) {
 			flags = gmt_M_memory (GMT, NULL, D->H.n_records, unsigned int);
 			n_E77_flags = n_E77_headers = n_E77_scales = n_E77_offsets = n_E77_recalcs = 0;
 
-			MGD77_nc_status (GMT, nc_open (In.path, NC_WRITE, &In.nc_id));	/* Open the file */
+			MGD77_nc_status (GMT, gmt_nc_open (GMT, In.path, NC_WRITE, &In.nc_id));	/* Open the file */
 			MGD77_nc_status (GMT, nc_redef (In.nc_id));				/* Enter define mode */
 			(void)MGD77_Remove_E77 (GMT, &In);				/* Remove any previously revised header parameters */
 			while (gmt_fgets (GMT, line, GMT_BUFSIZ, fp_e) && strncmp (line, "# Errata: Data", 14U)) {	/* Read until we get to data record section */
@@ -1530,7 +1544,7 @@ EXTERN_MSC int GMT_mgd77manage (void *V_API, int mode, void *args) {
 
 		if (MGD77_Open_File (GMT, list[argno], &In, MGD77_UPDATE_MODE)) return (-1);	/* Only creates the full path to the new file */
 
-		MGD77_nc_status (GMT, nc_open (In.path, NC_WRITE, &In.nc_id));	/* Open the file */
+		MGD77_nc_status (GMT, gmt_nc_open (GMT, In.path, NC_WRITE, &In.nc_id));	/* Open the file */
 		MGD77_nc_status (GMT, nc_redef (In.nc_id));				/* Enter define mode */
 
 		dims[0] = In.nc_recid;	dims[1] = LEN;

@@ -31,18 +31,21 @@ Optional Arguments
 **show**
     Open all graphics produced by the session in the default viewer.
 
-.. _-V:
-
-.. |Add_-V| unicode:: 0x20 .. just an invisible code
+.. |Add_-V| replace:: |Add_-V_links|
 .. include:: explain_-V.rst_
+    :start-after: **Syntax**
+    :end-before: **Description**
 
 .. include:: explain_help_nopar.rst_
 
 Examples
 --------
 
-To close the current modern session and finalize any plots requested, we use::
+We first create a modern mode session using **begin**, do plotting, and
+close the current modern session and finalize any plots requested::
 
+    gmt begin
+    gmt basemap -R0/10/0/10 -JX10c -Baf
     gmt end
 
 Disable display

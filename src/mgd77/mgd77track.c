@@ -1,6 +1,6 @@
 /*--------------------------------------------------------------------
  *
- *    Copyright (c) 2004-2020 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
+ *    Copyright (c) 2004-2021 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
  *    See README file for copying and redistribution conditions.
  *--------------------------------------------------------------------*/
 /*
@@ -624,12 +624,13 @@ EXTERN_MSC int GMT_mgd77track (void *V_API, int mode, void *args) {
 
 	if (n_paths <= 0) {
 		GMT_Report (API, GMT_MSG_ERROR, "No cruises given\n");
+		MGD77_Path_Free (GMT, (uint64_t)n_paths, list);
 		Return (GMT_NO_INPUT);
 	}
 
 	use = (M.original) ? MGD77_ORIG : MGD77_REVISED;
 
-	if (gmt_M_err_pass (GMT, gmt_map_setup (GMT, GMT->common.R.wesn), "")) {
+	if (gmt_map_setup (GMT, GMT->common.R.wesn)) {
 		MGD77_Path_Free (GMT, (uint64_t)n_paths, list);
 		Return (GMT_PROJECTION_ERROR);
 	}
@@ -639,7 +640,9 @@ EXTERN_MSC int GMT_mgd77track (void *V_API, int mode, void *args) {
 		Return (GMT_RUNTIME_ERROR);
 	}
 	gmt_plane_perspective (GMT, GMT->current.proj.z_project.view_plane, GMT->current.proj.z_level);
+	gmt_set_basemap_orders (GMT, Ctrl->N.active ? GMT_BASEMAP_FRAME_BEFORE : GMT_BASEMAP_FRAME_AFTER, GMT_BASEMAP_GRID_BEFORE, GMT_BASEMAP_ANNOT_BEFORE);
 	gmt_plotcanvas (GMT);	/* Fill canvas if requested */
+	gmt_map_basemap (GMT);	/* Basemap before data */
 
 	gmt_map_clip_on (GMT, GMT->session.no_rgb, 3);
 	gmt_setpen (GMT, &Ctrl->W.pen);
@@ -679,8 +682,10 @@ EXTERN_MSC int GMT_mgd77track (void *V_API, int mode, void *args) {
 		track_time = (double*)D->values[0];
 		lon = (double*)D->values[1];
 		lat = (double*)D->values[2];
-		if ((track_dist = gmt_dist_array_2(GMT, lon, lat, D->H.n_records, 1.0, dist_flag)) == NULL)		/* Work internally in meters */
-			gmt_M_err_fail (GMT, GMT_MAP_BAD_DIST_FLAG, "");
+		if ((track_dist = gmt_dist_array_2(GMT, lon, lat, D->H.n_records, 1.0, dist_flag)) == NULL) {		/* Work internally in meters */
+			error = gmt_M_err_fail (GMT, GMT_MAP_BAD_DIST_FLAG, "");
+			Return (error);
+		}
 		for (rec = 0; rec < D->H.n_records && mgd77track_bad_coordinates (lon[rec], lat[rec]) && track_time[rec] <
 		     Ctrl->D.start && track_dist[rec] < Ctrl->S.start; rec++);	/* Find first record of interest */
 		first_rec = rec;

@@ -15,7 +15,7 @@
     **+e**
        Delay the plotting of the text. This is used to build a clip path
        based on the text, then lay down other overlays while that clip path
-       is in effect, then turning of clipping with clip **-Cs** which
+       is in effect, then turning off clipping with clip **-Cs** which
        finally plots the original text.
 
     **+f**\ *font*
@@ -26,8 +26,8 @@
        Selects opaque text boxes [Default is transparent]; optionally
        specify the color [Default is :term:`PS_PAGE_COLOR`].
 
-    **+h**
-       Hide the lines [Default draws the lines]. This may be useful if all you want
+    **+i**
+       Invisible lines (i.e., hide the lines) [Default draws the lines]. This may be useful if all you want
        is to see annotations and labels and not the lines that guides them.
 
     **+j**\ *just*
@@ -66,7 +66,7 @@
         Specifies curved labels following the contour [Default is straight
         labels].
 
-    **+w**
+    **+w**\ *n*
         Specifies how many (*x*,\ *y*) points will be used to estimate
         label angles [automatic].
 

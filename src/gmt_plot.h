@@ -1,6 +1,6 @@
 /*--------------------------------------------------------------------
  *
- *	Copyright (c) 1991-2020 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
+ *	Copyright (c) 1991-2021 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
  *	See LICENSE.TXT file for copying and redistribution conditions.
  *
  *	This program is free software; you can redistribute it and/or modify
@@ -47,12 +47,13 @@
 #define GMT_SYMBOL_DRAW		((int)'D')
 #define GMT_SYMBOL_STROKE	((int)'S')
 #define GMT_SYMBOL_ARC		((int)'A')
-#define GMT_SYMBOL_ROTATE	((int)'R')
+#define GMT_SYMBOL_ROTATE	((int)'O')	/* Since R stands for rounded rectangle in plot */
 #define GMT_SYMBOL_VARROTATE	((int)'V')
 #define GMT_SYMBOL_AZIMROTATE	((int)'Z')
 #define GMT_SYMBOL_TEXTURE	((int)'T')
 #define GMT_SYMBOL_GEOVECTOR	((int)'=')
 #define GMT_SYMBOL_VARTEXT	((int)'L')
+#define GMT_SYMBOL_EPS	((int)'P')
 
 #define GMT_SYMBOL_LINE		0
 #define GMT_SYMBOL_NONE		((int)' ')
@@ -82,6 +83,13 @@ enum GMT_enum_wedgetype {GMT_WEDGE_NORMAL = 0,
 	GMT_WEDGE_RADII = 2,
 	GMT_WEDGE_SPIDER = 3};
 
+/*! Type of symbol base value */
+
+enum GMT_enum_basetype {GMT_BASE_MIN = 0,	/* Bar starts at the minimum value in -R */
+	GMT_BASE_ARG = 1,		/* Base given via +b<base> */
+	GMT_BASE_READ = 2,		/* Base read from file due to +b */
+	GMT_BASE_ORIGIN = 4};		/* For +z|Z: All values relative to given base */
+
 /*! A sub-symbol for symbols along a front */
 struct GMT_FRONTLINE {
 	double f_gap;		/* Gap between front symbols in inches */
@@ -89,7 +97,7 @@ struct GMT_FRONTLINE {
 	double f_off;		/* Offset of first symbol from start of front in inches */
 	double f_angle;		/* Angle of the slip vector hook [30] */
 	bool f_exact;		/* Take given positive gap exactly [Default will adjust gap to distribute evenly along length of front] */
-	bool invisible;		/* True if we dont want to draw the front line itself */
+	bool invisible;		/* True if we don't want to draw the front line itself */
 	int f_sense;		/* Draw symbols to left (+1), centered (0), or right (-1) of line */
 	int f_symbol;		/* Which symbol to draw along the front line */
 	int f_pen;		/* -1 for no outline (+p), 0 for default outline [-1], +1 if +p<pen> was used to set separate pen for outline */
@@ -131,17 +139,20 @@ struct GMT_SYMBOL {
 	unsigned int u;		/* Measure unit id (0 = cm, 1 = inch, 2 = m, 3 = point */
 	unsigned int read_symbol_cmd;	/* 1 when -S indicated we must read symbol type from file, 2 with -SK is used */
 	bool u_set;		/* true if u was set */
+	bool par_set;		/* true if all parameters were set for e,j */
 	double factor;		/* Scaling needed to unify symbol area for circle, triangles, etc. [1] */
 	double size_x;		/* Current symbol size in x */
 	double size_y;		/* Current symbol size in y */
 	double given_size_x;	/* Symbol size read from file or command line */
 	double given_size_y;	/* Symbol size read from file or command line */
+	double gap;			/* Fractional spacing between side-by-side bars when -Sb|B+s[<gap>] is given */
 	bool read_size_cmd;	/* true when -S indicated we must read symbol sizes from file */
 	bool read_size;		/* true when we must read symbol size from file for the current record */
 	bool shade3D;		/* true when we should simulate shading of 3D symbols cube and column */
 	bool fq_parse;		/* true -Sf or -Sq were given with no args on command line and must be parsed via segment headers */
-	bool accumulate;	/* true if -So takes many band z and they are increments, not total z values */
+	bool accumulate;	/* true if -So|b|B takes many band z and they are increments, not total z values */
 	bool diagonal;		/* true if -Sr+s is given */
+	bool sidebyside;		/* true if -Sb|B+s[<gap>] is given */
 	struct GMT_FONT font;	/* Font to use for the -Sl symbol */
 	unsigned int convert_angles;	/* If 2, convert azimuth to angle on map, 1 special case for -JX, 0 plain case */
 	unsigned int n_nondim;	/* Number of columns that has angles or km (and not dimensions with units) */
@@ -161,6 +172,9 @@ struct GMT_SYMBOL {
 	unsigned int w_mode;	/* Distance mode */
 	enum GMT_enum_wedgetype w_type;	/* Wedge type */
 	bool w_active;
+	bool w_get_do;	/* True if we must read outer diameter */
+	bool w_get_di;	/* True if we must read inner diameter */
+	bool w_get_a;	/* True if we must read the two angles */
 
 	/* These apply to vectors */
 

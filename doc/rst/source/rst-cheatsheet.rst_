@@ -96,7 +96,7 @@ Links
 External links
 --------------
 
-https://generic-mapping-tools.org
+https://www.generic-mapping-tools.org
 
 `GMT Forum <https://forum.generic-mapping-tools.org/>`_
 
@@ -110,6 +110,7 @@ Link to a section title with `Lists`_.
 Link to a target with :ref:`Link to a table <tbl-grid>`.
 
 Link to a GMT parameter :term:`FONT_TITLE`.
+
 
 
 
@@ -131,3 +132,18 @@ Use the ``figure`` directive to include images:
    :width: 90%
 
    Figure caption
+
+
+
+Math
+====
+
+reST also supports LaTeX-style math.
+
+This is an inline math :math:`x^2+y^2=z^2`.
+
+For long equations, use the ``math`` directive:
+
+.. math::
+
+   \gamma = \sqrt{(\alpha^2 + \beta^2)}

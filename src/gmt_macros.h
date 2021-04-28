@@ -1,6 +1,6 @@
 /*--------------------------------------------------------------------
  *
- *	Copyright (c) 1991-2020 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
+ *	Copyright (c) 1991-2021 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
  *	See LICENSE.TXT file for copying and redistribution conditions.
  *
  *	This program is free software; you can redistribute it and/or modify
@@ -59,6 +59,9 @@
 #define gmt_nc_put_varm_grdfloat nc_put_varm_float
 #endif
 
+/* This macro is called via each modules "Return" macro so API and options are available */
+#define gmt_M_free_options(mode) {if (GMT_Destroy_Options (API, &options) != GMT_OK) return (GMT_MEMORY_ERROR);}
+
 /*! Safe math macros that check arguments */
 
 #define d_log2(C,x) ((x) <= 0.0f ? C->session.f_NaN : log2 (x))
@@ -113,6 +116,7 @@
 #define gmt_M_int_swap(x, y) {int int_tmp; int_tmp = x, x = y, y = int_tmp;}
 #define gmt_M_uint_swap(x, y) {unsigned int uint_tmp; uint_tmp = x, x = y, y = uint_tmp;}
 #define gmt_M_double_swap(x, y) {double double_tmp; double_tmp = x, x = y, y = double_tmp;}
+#define gmt_M_doublep_swap(x, y) {double *double_tmp; double_tmp = x, x = y, y = double_tmp;}
 #define gmt_M_float_swap(x, y) {float float_tmp; float_tmp = x, x = y, y = float_tmp;}
 
 /*! Macro to ensure proper value and sign of a change in longitude from lon1 to lon2 */
@@ -150,14 +154,17 @@
 /* Determine if we should skip this CPT slice */
 #define gmt_M_skip_cptslice(P,index) ((index >= 0 && P->data[index].skip) || (index < 0 && P->bfn[index+3].skip))
 
-/* See if CPT modifiers was given (+u|U modifier) */
-#define gmt_M_cpt_mod(arg) ((arg) && ((arg)[0] =='+' && strchr ("uU", (arg)[1])))
+/* See if CPT modifiers was given (+h|i|u|U) */
+#define gmt_M_cpt_mod(arg) ((arg) && ((arg)[0] =='+' && strchr (GMT_CPTFILE_MODIFIERS, (arg)[1])))
 
 /* See if no CPT name was given (+u|U modifier may be present but not filename) */
 #define gmt_M_no_cpt_given(arg) (arg == NULL || arg[0] == '\0' || gmt_M_cpt_mod(arg))
 
-/*! Copy two RGB[T] arrays (a = b) */
+/*! Copy two RGB[T] arrays (a = b) including transparency */
 #define gmt_M_rgb_copy(a,b) memcpy (a, b, 4 * sizeof(double))
+
+/*! Copy two RGB[T] arrays (a = b) excluding transparency */
+#define gmt_M_rgb_only_copy(a,b) memcpy (a, b, 3 * sizeof(double))
 
 /*! To compare is two colors are ~ the same */
 #define gmt_M_eq(a,b) (fabs((a)-(b)) < GMT_CONV4_LIMIT)
@@ -195,10 +202,12 @@
 /*! Determine default justification for box item */
 #define gmt_M_just_default(GMT,refpoint,just) (refpoint->mode == GMT_REFPOINT_JUST_FLIP ? gmt_flip_justify(GMT,refpoint->justify) : refpoint->mode == GMT_REFPOINT_JUST ? refpoint->justify : just)
 
-/*! Determine if we have a special downloadable file */
-#define gmt_M_file_is_remotedata(file) (file != NULL && file[0] == '@' && !strncmp (&file[1], GMT_DATA_PREFIX, 13U))
-#define gmt_M_file_is_cache(file) (file != NULL && file[0] == '@' && strncmp (file, "@GMTAPI@-", 9U))
+/*! Determine if we have a remote file, special URL files or queries, or special netCDF files */
+#define gmt_M_file_is_remote(file) (file != NULL && !gmt_M_file_is_memory(file) && file[0] == '@')
 #define gmt_M_file_is_url(file) (file != NULL && (!strncmp (file, "http:", 5U) || !strncmp (file, "https:", 6U) || !strncmp (file, "ftp:", 4U)))
+#define gmt_M_file_is_query(file) (gmt_M_file_is_url(file) && strchr (file, '?') && strchr (file, '='))
+#define gmt_M_file_is_netcdf(file) (!gmt_M_file_is_url(file) && strchr (file, '?'))
+#define gmt_M_file_is_netcdf_layer(file) (gmt_M_file_is_netcdf(file) && (strchr (file, '(') || strchr (file, '[')))
 
 /*! Determine if file is an image GDAL can read */
 #define gmt_M_file_is_image(file) (file != NULL && (strstr (file, "=gd") || strstr (file, ".jpg") || strstr (file, ".png") || strstr (file, ".ppm") || strstr (file, ".tif") || strstr (file, ".bmp") || strstr (file, ".gif")))

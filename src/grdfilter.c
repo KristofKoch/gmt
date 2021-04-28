@@ -1,6 +1,6 @@
 /*--------------------------------------------------------------------
  *
- *	Copyright (c) 1991-2020 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
+ *	Copyright (c) 1991-2021 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
  *	See LICENSE.TXT file for copying and redistribution conditions.
  *
  *	This program is free software; you can redistribute it and/or modify
@@ -709,11 +709,10 @@ static int parse (struct GMT_CTRL *GMT, struct GRDFILTER_CTRL *Ctrl, struct GMT_
 
 		switch (opt->option) {
 			case '<':	/* Input file (only one is accepted) */
-				if (n_files++ > 0) break;
-				if ((Ctrl->In.active = gmt_check_filearg (GMT, '<', opt->arg, GMT_IN, GMT_IS_GRID)))
-					Ctrl->In.file = strdup (opt->arg);
-				else
-					n_errors++;
+				if (n_files++ > 0) {n_errors++; continue; }
+				Ctrl->In.active = true;
+				if (opt->arg[0]) Ctrl->In.file = strdup (opt->arg);
+				if (GMT_Get_FilePath (GMT->parent, GMT_IS_GRID, GMT_IN, GMT_FILE_REMOTE, &(Ctrl->In.file))) n_errors++;
 				break;
 
 			/* Processes program-specific parameters */
@@ -756,9 +755,8 @@ static int parse (struct GMT_CTRL *GMT, struct GRDFILTER_CTRL *Ctrl, struct GMT_
 						Ctrl->F.width = grdfilter_get_filter_width (API, Ctrl, &txt[1]);
 					}
 					else if (Ctrl->F.filter == 'f' || Ctrl->F.filter == 'o') {	/* Custom filter or operator */
-						if (gmt_check_filearg (GMT, 'F', &opt->arg[1], GMT_IN, GMT_IS_GRID))
-							Ctrl->F.file = strdup (&opt->arg[1]);
-						else {
+						Ctrl->F.file = strdup (&opt->arg[1]);
+						if (GMT_Get_FilePath (GMT->parent, GMT_IS_GRID, GMT_IN, GMT_FILE_REMOTE, &(Ctrl->F.file))) {
 							GMT_Report (API, GMT_MSG_ERROR, "Option -F%c: Cannot access filter weight or operator grid %s\n",
 								Ctrl->F.filter, &opt->arg[1]);
 							n_errors++;
@@ -836,10 +834,9 @@ static int parse (struct GMT_CTRL *GMT, struct GRDFILTER_CTRL *Ctrl, struct GMT_
 				}
 				break;
 			case 'G':	/* Output file */
-				if ((Ctrl->G.active = gmt_check_filearg (GMT, 'G', opt->arg, GMT_OUT, GMT_IS_GRID)))
-					Ctrl->G.file = strdup (opt->arg);
-				else
-					n_errors++;
+				Ctrl->G.active = true;
+				if (opt->arg[0]) Ctrl->G.file = strdup (opt->arg);
+				if (GMT_Get_FilePath (GMT->parent, GMT_IS_GRID, GMT_OUT, GMT_FILE_LOCAL, &(Ctrl->G.file))) n_errors++;
 				break;
 			case 'I':	/* New grid spacings */
 				n_errors += gmt_parse_inc_option (GMT, 'I', opt->arg);
@@ -1342,16 +1339,16 @@ EXTERN_MSC int GMT_grdfilter (void *V_API, int mode, void *args) {
 
 			/* Here we low-passed filtered onto a coarse grid but to get high-pass we must sample the low-pass result at the original resolution */
 			/* Create a virtual file for the low-pass filtered grid */
-			if (GMT_Open_VirtualFile (API, GMT_IS_GRID, GMT_IS_SURFACE, GMT_IN, Gout, in_string) == GMT_NOTSET) {
+			if (GMT_Open_VirtualFile (API, GMT_IS_GRID, GMT_IS_SURFACE, GMT_IN|GMT_IS_REFERENCE, Gout, in_string) == GMT_NOTSET) {
 				Return (API->error);
 			}
 			/* Create a virtual file to hold the resampled grid */
-			if (GMT_Open_VirtualFile (API, GMT_IS_GRID, GMT_IS_SURFACE, GMT_OUT, NULL, out_string) == GMT_NOTSET) {
+			if (GMT_Open_VirtualFile (API, GMT_IS_GRID, GMT_IS_SURFACE, GMT_OUT|GMT_IS_REFERENCE, NULL, out_string) == GMT_NOTSET) {
 				Return (API->error);
 			}
 			sprintf (cmd, "%s -G%s -R%s -V%c", in_string, out_string, Ctrl->In.file, V_level[GMT->current.setting.verbose]);
 			if (gmt_M_is_geographic (GMT, GMT_IN)) strcat (cmd, " -fg");
-			strcat (cmd, " --GMT_HISTORY=false");
+			strcat (cmd, " --GMT_HISTORY=readonly");
 			GMT_Report (API, GMT_MSG_INFORMATION,
 					"Highpass requires us to resample the lowpass result at original registration via grdsample %s\n", cmd);
 			GMT_Report (GMT->parent, GMT_MSG_INFORMATION, "Calling grdsample with args %s\n", cmd);
@@ -1417,7 +1414,7 @@ GMT_LOCAL void grdfilter_threaded_function (struct THREAD_STRUCT *t) {
 #ifdef DEBUG
 	unsigned int n_conv = 0;
 #endif
-	uint64_t ij_in, ij_out, ij_wt;
+	uint64_t ij_in, ij_out, ij_wt, ij_area;
 	double y, y_out, wt_sum, value, this_estimate = 0.0;
 	double y_shift = 0.0, lat_out, w;
 	double *work_array = NULL, *weight = NULL;
@@ -1537,23 +1534,23 @@ GMT_LOCAL void grdfilter_threaded_function (struct THREAD_STRUCT *t) {
 					}
 
 					/* Get here when point is inside and usable  */
-
+					ij_area = gmt_M_ijp (A->header, row_in, col_in);	/* Finally, the current input data point inside the filter */
 					if (slow) {	/* Add it to the relevant temporary work array */
 						if (slower) {	/* Need to store both value and weight */
 							work_data[n_in_median].value = Gin->data[ij_in];
-							work_data[n_in_median++].weight = (gmt_grdfloat)(weight[ij_wt] * A->data[ij_in]);
+							work_data[n_in_median++].weight = (gmt_grdfloat)(weight[ij_wt] * A->data[ij_area]);
 						}
 						else	/* Only need to store values */
 							work_array[n_in_median++] = Gin->data[ij_in];
 					}
 					else {	/* Update weighted sum for our convolution */
-						w = weight[ij_wt] * A->data[ij_in];
+						w = weight[ij_wt] * A->data[ij_area];
 						value += Gin->data[ij_in] * w;
 						if (get_weight_sum) wt_sum += w;
 #ifdef DEBUG
 						n_conv++;	/* Points used inside filter circle */
 						if (Ctrl->A.active) {	/* Store selected debug info in Gin data */
-							if (Ctrl->A.mode == 'a') Gin->data[ij_in] = A->data[ij_in];
+							if (Ctrl->A.mode == 'a') Gin->data[ij_in] = A->data[ij_area];
 							else if (Ctrl->A.mode == 'w') Gin->data[ij_in] = (gmt_grdfloat)weight[ij_wt];
 							else if (Ctrl->A.mode == 'r') Gin->data[ij_in] = (gmt_grdfloat)weight[ij_wt];	/* holds r */
 							else if (Ctrl->A.mode == 'c') Gin->data[ij_in] = (gmt_grdfloat)w;

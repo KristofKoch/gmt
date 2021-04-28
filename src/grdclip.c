@@ -1,6 +1,6 @@
 /*--------------------------------------------------------------------
  *
- *	Copyright (c) 1991-2020 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
+ *	Copyright (c) 1991-2021 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
  *	See LICENSE.TXT file for copying and redistribution conditions.
  *
  *	This program is free software; you can redistribute it and/or modify
@@ -141,20 +141,18 @@ static int parse (struct GMT_CTRL *GMT, struct GRDCLIP_CTRL *Ctrl, struct GMT_OP
 		switch (opt->option) {
 
 			case '<':	/* Input file (only one is accepted) */
-				if (n_files++ > 0) break;
-				if ((Ctrl->In.active = gmt_check_filearg (GMT, '<', opt->arg, GMT_IN, GMT_IS_GRID)))
-					Ctrl->In.file = strdup (opt->arg);
-				else
-					n_errors++;
+				if (n_files++ > 0) {n_errors++; continue; }
+				Ctrl->In.active = true;
+				if (opt->arg[0]) Ctrl->In.file = strdup (opt->arg);
+				if (GMT_Get_FilePath (GMT->parent, GMT_IS_GRID, GMT_IN, GMT_FILE_REMOTE, &(Ctrl->In.file))) n_errors++;
 				break;
 
 			/* Processes program-specific parameters */
 
 			case 'G':	/* Output filename */
-				if ((Ctrl->G.active = gmt_check_filearg (GMT, 'G', opt->arg, GMT_OUT, GMT_IS_GRID)))
-					Ctrl->G.file = strdup (opt->arg);
-				else
-					n_errors++;
+				Ctrl->G.active = true;
+				if (opt->arg[0]) Ctrl->G.file = strdup (opt->arg);
+				if (GMT_Get_FilePath (GMT->parent, GMT_IS_GRID, GMT_OUT, GMT_FILE_LOCAL, &(Ctrl->G.file))) n_errors++;
 				break;
 			case 'S':	/* Set limits */
 				Ctrl->S.active = true;
@@ -173,11 +171,6 @@ static int parse (struct GMT_CTRL *GMT, struct GRDCLIP_CTRL *Ctrl, struct GMT_OP
 					}
 					else
 						Ctrl->S.above = (txt[0] == 'N' || txt[0] == 'n') ? GMT->session.f_NaN : (gmt_grdfloat)atof (txt);
-
-					if (!isnan(Ctrl->S.above) && Ctrl->S.above < Ctrl->S.high) {
-						GMT_Report (API, GMT_MSG_ERROR, "Option -Sb: <above> cannot be lesser then <high>\n");
-						n_errors++;
-					}
 					break;
 				case 'b':
 					Ctrl->S.mode |= GRDCLIP_BELOW;
@@ -192,11 +185,6 @@ static int parse (struct GMT_CTRL *GMT, struct GRDCLIP_CTRL *Ctrl, struct GMT_OP
 					}
 					else
 						Ctrl->S.below = (txt[0] == 'N' || txt[0] == 'n') ? GMT->session.f_NaN : (gmt_grdfloat)atof (txt);
-
-					if (!isnan(Ctrl->S.below) && Ctrl->S.below > Ctrl->S.low) {
-						GMT_Report (API, GMT_MSG_ERROR, "Option -Sb: <below> cannot be greater then <low>\n");
-						n_errors++;
-					}
 					break;
 				case 'i':
 					n_to_expect = 3;	/* Since only two for -Sr */
@@ -219,13 +207,6 @@ static int parse (struct GMT_CTRL *GMT, struct GRDCLIP_CTRL *Ctrl, struct GMT_OP
 						}
 						else
 							Ctrl->S.class[n_class].between = (txt[0] == 'N' || txt[0] == 'n') ? GMT->session.f_NaN : (gmt_grdfloat)atof (txt);
-
-						if (!isnan(Ctrl->S.class[n_class].between) &&
-						    !(Ctrl->S.class[n_class].low <= Ctrl->S.class[n_class].between &&
-							  Ctrl->S.class[n_class].high >= Ctrl->S.class[n_class].between)) {
-							GMT_Report (API, GMT_MSG_ERROR, "Option -Si: <between> is not between <low> and <high>\n");
-							n_errors++;
-						}
 					}
 					else {
 #ifdef DOUBLE_PRECISION_GRID
@@ -336,12 +317,15 @@ EXTERN_MSC int GMT_grdclip (void *V_API, int mode, void *args) {
 	if ((G = GMT_Read_Data (API, GMT_IS_GRID, GMT_IS_FILE, GMT_IS_SURFACE, GMT_CONTAINER_ONLY, NULL, Ctrl->In.file, NULL)) == NULL) {
 		Return (API->error);
 	}
-	if (gmt_M_is_subset (GMT, G->header, wesn)) gmt_M_err_fail (GMT, gmt_adjust_loose_wesn (GMT, wesn, G->header), "");	/* Subset requested; make sure wesn matches header spacing */
+	if (gmt_M_is_subset (GMT, G->header, wesn)) {	/* Subset requested; make sure wesn matches header spacing */
+		if ((error = gmt_M_err_fail (GMT, gmt_adjust_loose_wesn (GMT, wesn, G->header), "")))
+			Return (error);
+	}
 	if (GMT_Read_Data (API, GMT_IS_GRID, GMT_IS_FILE, GMT_IS_SURFACE, GMT_DATA_ONLY, wesn, Ctrl->In.file, G) == NULL) {
 		Return (API->error);	/* Get subset */
 	}
 
-	new_grid = gmt_set_outgrid (GMT, Ctrl->In.file, false, G, &Out);	/* true if input is a read-only array */
+	new_grid = gmt_set_outgrid (GMT, Ctrl->In.file, false, 0, G, &Out);	/* true if input is a read-only array */
 
 	gmt_M_grd_loop (GMT, G, row, col, ij) {
 		/* Checking if extremes are exceeded (need not check NaN) */

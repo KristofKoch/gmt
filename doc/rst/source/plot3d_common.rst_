@@ -19,26 +19,28 @@ respectively.
 Required Arguments
 ------------------
 
-.. _-J:
+.. |Add_intables| unicode:: 0x20 .. just an invisible code
+.. include:: explain_intables.rst_
 
-.. |Add_-J| unicode:: 0x20 .. just an invisible code
+.. |Add_-J| replace:: |Add_-J_links|
 .. include:: explain_-J.rst_
+    :start-after: **Syntax**
+    :end-before: **Description**
+
+.. _-Jz:
 
 .. include:: explain_-Jz.rst_
 
-.. _-R:
-
-.. |Add_-R| unicode:: 0x20 .. just an invisible code
+.. |Add_-R| replace:: |Add_-R_links|
 .. include:: explain_-R.rst_
+    :start-after: **Syntax**
+    :end-before: **Description**
 
 .. |Add_-Rz| unicode:: 0x20 .. just an invisible code
 .. include:: explain_-Rz.rst_
 
 Optional Arguments
 ------------------
-
-.. |Add_intables| unicode:: 0x20 .. just an invisible code
-.. include:: explain_intables.rst_
 
 .. _-A:
 
@@ -53,9 +55,10 @@ Optional Arguments
     curves that whose first move is along *x* or *y*, respectively. **Note**:
     The **-A** option requires constant *z*-coordinates.
 
-.. _-B:
-
+.. |Add_-B| replace:: |Add_-B_links|
 .. include:: explain_-B.rst_
+    :start-after: **Syntax**
+    :end-before: **Description**
 
 .. _-C:
 
@@ -65,13 +68,13 @@ Optional Arguments
     In this case *color*\ **n** can be a r/g/b triplet, a color name,
     or an HTML hexadecimal color (e.g. #aabbcc ).
     If **-S** is set, let symbol fill color be
-    determined by the t-value in the fourth column. Additional fields are
+    determined by the *value* in the fourth column. Additional fields are
     shifted over by one column (optional size would be in 5th rather than
     4th field, etc.). An exception to this rule is for multi-band 3-D
     columns where each band gets its color from each slice in the CPT.
     If **-S** is not set, then we expect the user
     to supply a multisegment file (where each segment header contains a
-    **-Z**\ *val* string. The *val* will control the color of the line or
+    **-Z**\ *value* string. The *vauel* will control the color of the line or
     polygon (if **-L** is set) via the CPT.  If modern mode and no argument is given
     then we select the current CPT.
 
@@ -79,7 +82,8 @@ Optional Arguments
 
 **-D**\ *dx*/*dy*\ [/*dz*]
     Offset the plot symbol or line locations by the given amounts
-    *dx/dy*\ [*dz*] [Default is no offset].
+    *dx/dy*\ [*dz*] [Default is no offset].  You may append dimensional
+    units from **c**\ \|\ **i**\ \|\ **p** to each value.
 
 .. _-G:
 
@@ -88,7 +92,17 @@ Optional Arguments
     Note that the module will search for **-G** and **-W** strings in all the
     segment headers and let any values thus found over-ride the command line settings.
     If **-Z** is set, use **-G+z** to assign fill color via **-C**\ *cpt* and the
-    *z*-values obtained.
+    *z*-values obtained.  Finally, if *fill* = *auto*\ [*-segment*] or *auto-table* then
+    we will cycle through the fill colors implied by :term:`COLOR_SET` and change on a per-segment
+    or per-table basis.  Any *transparency* setting is unchanged.
+
+.. _-H:
+
+**-H**\ [*scale*]
+    Scale symbol sizes and pen widths on a per-record basis using the *scale* read from the
+    data set, given as the first column after the (optional) *w* and *size* columns [no scaling].
+    The symbol size is either provided by **-S** or via the input *size* column.  Alternatively,
+    append a constant *scale* that should be used instead of reading a scale column.
 
 .. _-I:
 
@@ -132,16 +146,19 @@ Optional Arguments
 
 .. _-S:
 
-.. include:: explain_symbols2.rst_
+.. include:: explain_symbols.rst_
 
-.. _-U:
+.. include:: explain_3D_symbols.rst_
 
+.. |Add_-U| replace:: |Add_-U_links|
 .. include:: explain_-U.rst_
+    :start-after: **Syntax**
+    :end-before: **Description**
 
-.. _-V:
-
-.. |Add_-V| unicode:: 0x20 .. just an invisible code
+.. |Add_-V| replace:: |Add_-V_links|
 .. include:: explain_-V.rst_
+    :start-after: **Syntax**
+    :end-before: **Description**
 
 .. _-W:
 
@@ -152,11 +169,14 @@ Optional Arguments
     **-C**). If instead modifier **+cf** is appended then the color from the cpt
     file is applied to symbol fill.  Use just **+c** for both effects.
     If **-Z** is set, then append **+z** to **-W** to assign pen color via **-C**\ *cpt* and the
-    *z*-values obtained.
+    *z*-values obtained.  Finally, if pen *color* = *auto*\ [*-segment*] or *auto-table* then
+    we will cycle through the pen colors implied by :term:`COLOR_SET` and change on a per-segment
+    or per-table basis.  The *width*, *style*, or *transparency* settings are unchanged.
 
-.. _-X:
-
+.. |Add_-XY| replace:: |Add_-XY_links|
 .. include:: explain_-XY.rst_
+    :start-after: **Syntax**
+    :end-before: **Description**
 
 .. _-Z:
 
@@ -188,13 +208,17 @@ Optional Arguments
 
 .. include:: explain_-icols.rst_
 
+.. |Add_-l| unicode:: 0x20 .. just an invisible code
+.. include:: explain_-l.rst_
+
 .. |Add_perspective| unicode:: 0x20 .. just an invisible code
 .. include:: explain_perspective.rst_
 
 .. include:: explain_-qi.rst_
 
-.. include:: explain_-t.rst_
-If no transparency is appended then we will read it from the last column per data record instead.
+.. include:: explain_-tv_full.rst_
+
+.. include:: explain_-w.rst_
 
 .. include:: explain_colon.rst_
 

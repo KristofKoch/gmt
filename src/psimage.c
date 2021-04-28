@@ -1,6 +1,6 @@
 /*--------------------------------------------------------------------
  *
- *	Copyright (c) 1991-2020 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
+ *	Copyright (c) 1991-2021 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
  *	See LICENSE.TXT file for copying and redistribution conditions.
  *
  *	This program is free software; you can redistribute it and/or modify
@@ -15,7 +15,7 @@
  *	Contact info: www.generic-mapping-tools.org
  *--------------------------------------------------------------------*/
 /*
- * Brief synopsis: psimage reads an EPS file or a a 1, 8, 24, or 32 bit image and plots it on the page
+ * Brief synopsis: psimage reads an EPS file or a 1, 8, 24, or 32 bit image and plots it on the page
  * Images are only supported if GMT was built with GDAL support.
  *
  * Author:	Paul Wessel
@@ -144,10 +144,10 @@ static int parse (struct GMT_CTRL *GMT, struct PSIMAGE_CTRL *Ctrl, struct GMT_OP
 		switch (opt->option) {
 
 			case '<':	/* Input files */
-				if (n_files++ == 0 && gmt_check_filearg (GMT, '<', opt->arg, GMT_IN, GMT_IS_IMAGE))
-					Ctrl->In.file = strdup (opt->arg);
-				else
-					n_errors++;
+				if (n_files++ > 0) {n_errors++; continue; }
+				Ctrl->In.active = true;
+				if (opt->arg[0]) Ctrl->In.file = strdup (opt->arg);
+				if (GMT_Get_FilePath (GMT->parent, GMT_IS_IMAGE, GMT_IN, GMT_FILE_REMOTE, &(Ctrl->In.file))) n_errors++;
 				break;
 
 			/* Processes program-specific parameters */
@@ -170,7 +170,7 @@ static int parse (struct GMT_CTRL *GMT, struct PSIMAGE_CTRL *Ctrl, struct GMT_OP
 					n_errors++;
 				}
 				else {	/* args are now [+j<justify>][+o<dx>[/<dy>]][+n<n_columns>[/<n_rows>]][+r<dpi>] */
-					if (gmt_validate_modifiers (GMT, Ctrl->D.refpoint->args, 'D', "jnorw")) n_errors++;
+					if (gmt_validate_modifiers (GMT, Ctrl->D.refpoint->args, 'D', "jnorw", GMT_MSG_ERROR)) n_errors++;
 					/* Required modifier +w OR +r */
 					if (gmt_get_modifier (Ctrl->D.refpoint->args, 'w', string)) {
 						if ((n = gmt_get_pair (GMT, string, GMT_PAIR_DIM_NODUP, Ctrl->D.dim)) < 0) n_errors++;
@@ -289,7 +289,7 @@ static int parse (struct GMT_CTRL *GMT, struct PSIMAGE_CTRL *Ctrl, struct GMT_OP
 	/* Check that the options selected are mutually consistent */
 
 	if (Ctrl->D.refpoint && Ctrl->D.refpoint->mode != GMT_REFPOINT_PLOT) {	/* Anything other than -Dx need -R -J; other cases don't */
-		static char *kind = "gjJnx";	/* The five types of refpoint specifications */
+		static char *kind = GMT_REFPOINT_CODES;	/* The five types of refpoint specifications */
 		n_errors += gmt_M_check_condition (GMT, !GMT->common.R.active[RSET], "-D%c requires the -R option\n", kind[Ctrl->D.refpoint->mode]);
 		n_errors += gmt_M_check_condition (GMT, !GMT->common.J.active, "-D%c requires the -J option\n", kind[Ctrl->D.refpoint->mode]);
 	}
@@ -311,7 +311,7 @@ GMT_LOCAL int file_is_eps (struct GMT_CTRL *GMT, char **file) {	/* Returns 1 if 
 
 	if (F == NULL || F[0] == '\0') return GMT_NOTSET;	/* Nothing given */
 	if (gmt_M_file_is_memory (F)) return (0);	/* Special passing of image */
-	if (gmt_M_file_is_cache (F)) {	/* Must download, then modify the name */
+	if (gmt_file_is_cache (GMT->parent, F)) {	/* Must download, then modify the name */
 		char *tmp = strdup (&F[1]);
 		(void)gmt_download_file_if_not_found (GMT, F, 0);
 		gmt_M_str_free (*file);
@@ -389,11 +389,11 @@ EXTERN_MSC int GMT_psimage (void *V_API, int mode, void *args) {
 	size_t n;
 	bool free_GMT = false, did_gray = false;
 
-	double x, y, wesn[4];
+	double x, y, wesn[4], Rwesn[4];
 
 	unsigned char *picture = NULL, *buffer = NULL;
 
-	char path[PATH_MAX] = {""}, *file = NULL, *c = NULL;
+	char path[PATH_MAX] = {""}, Jarg[GMT_LEN128] = {""}, *file = NULL, *c = NULL;
 
 	struct imageinfo header;
 
@@ -576,6 +576,7 @@ EXTERN_MSC int GMT_psimage (void *V_API, int mode, void *args) {
 
 	/* The following is needed to have psimage work correctly in perspective */
 
+	gmt_set_basemap_orders (GMT, GMT_BASEMAP_FRAME_AFTER, GMT_BASEMAP_GRID_AFTER, GMT_BASEMAP_ANNOT_AFTER);
 	gmt_M_memset (wesn, 4, double);
 	if (!(GMT->common.R.active[RSET] && GMT->common.J.active)) {	/* When no projection specified, use fake linear projection */
 		GMT->common.R.active[RSET] = true;
@@ -584,7 +585,9 @@ EXTERN_MSC int GMT_psimage (void *V_API, int mode, void *args) {
 		gmt_adjust_refpoint (GMT, Ctrl->D.refpoint, Ctrl->D.dim, Ctrl->D.off, Ctrl->D.justify, PSL_BL);	/* Adjust refpoint to BL corner */
 		wesn[XHI] = Ctrl->D.refpoint->x + Ctrl->D.n_columns * Ctrl->D.dim[GMT_X];
 		wesn[YHI] = Ctrl->D.refpoint->y + Ctrl->D.n_rows * Ctrl->D.dim[GMT_Y];
-		if (gmt_M_err_pass (GMT, gmt_map_setup (GMT, wesn), "")) {
+		gmt_M_memcpy (Rwesn, wesn, 4U, double);
+		strncpy (Jarg, "X1i", GMT_LEN128);
+		if (gmt_map_setup (GMT, wesn)) {
 			if (free_GMT)
 				gmt_M_free (GMT, picture);
 			else if (is_eps || did_gray)
@@ -603,7 +606,9 @@ EXTERN_MSC int GMT_psimage (void *V_API, int mode, void *args) {
 		gmt_plane_perspective (GMT, GMT->current.proj.z_project.view_plane, GMT->current.proj.z_level);
 	}
 	else {	/* First use current projection, project, then use fake projection */
-		if (gmt_M_err_pass (GMT, gmt_map_setup (GMT, GMT->common.R.wesn), "")) {
+		gmt_M_memcpy (Rwesn, GMT->common.R.wesn, 4U, double);
+		strncpy (Jarg, GMT->common.J.string, GMT_LEN128);
+		if (gmt_map_setup (GMT, GMT->common.R.wesn)) {
 			if (free_GMT)
 				gmt_M_free (GMT, picture);
 			else if (is_eps || did_gray)
@@ -629,7 +634,7 @@ EXTERN_MSC int GMT_psimage (void *V_API, int mode, void *args) {
 		wesn[XHI] = Ctrl->D.refpoint->x + Ctrl->D.n_columns * Ctrl->D.dim[GMT_X];
 		wesn[YHI] = Ctrl->D.refpoint->y + Ctrl->D.n_rows * Ctrl->D.dim[GMT_Y];
 		GMT->common.R.active[RSET] = GMT->common.J.active = true;
-		if (gmt_M_err_pass (GMT, gmt_map_setup (GMT, wesn), "")) {
+		if (gmt_map_setup (GMT, wesn)) {
 			if (free_GMT)
 				gmt_M_free (GMT, picture);
 			else if (is_eps || did_gray)
@@ -668,6 +673,18 @@ EXTERN_MSC int GMT_psimage (void *V_API, int mode, void *args) {
  	if (Ctrl->F.active)	/* Draw frame outlines */
 		gmt_draw_map_panel (GMT, Ctrl->D.refpoint->x + 0.5 * Ctrl->F.panel->width, Ctrl->D.refpoint->y + 0.5 * Ctrl->F.panel->height, 2U, Ctrl->F.panel);
 
+	/* Redo original -R -J so basemap can work */
+	GMT->common.J.active = false;
+	gmt_parse_common_options (GMT, "J", 'J', Jarg);
+	if (gmt_map_setup (GMT, Rwesn)) {
+		if (free_GMT)
+			gmt_M_free (GMT, picture);
+		else if (is_eps || did_gray)
+			PSL_free (picture);
+		gmt_M_str_free (file);
+		Return (GMT_PROJECTION_ERROR);
+	}
+	gmt_map_basemap (GMT);	/* Draw basemap if requested */
 	gmt_plane_perspective (GMT, -1, 0.0);
 	gmt_plotend (GMT);
 	gmt_M_str_free (file);

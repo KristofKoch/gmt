@@ -12,16 +12,14 @@ outline of the windrose is drawn with the same color as :term:`MAP_DEFAULT_PEN`.
 Required Arguments
 ------------------
 
-None.
-
-Optional Arguments
-------------------
-
 .. |Add_intables| replace:: If a file with only
     azimuths are given, use **-i** to indicate the single column with
     azimuths; then all lengths are set to unity (see **-Zu** to set
     actual lengths to unity as well).
 .. include:: explain_intables.rst_
+
+Optional Arguments
+------------------
 
 .. _-A:
 
@@ -30,18 +28,17 @@ Optional Arguments
     [Default 0 means windrose diagram]. Append **+r** to draw rose
     diagram instead of sector diagram.
 
-.. _-B:
-
+.. |Add_-B| replace:: |Add_-B_links| Remember that "x" here is radial distance
+   and "y" is azimuth. The ylabel may be used to plot a figure caption. The
+   scale bar length is determined by the radial gridline spacing.
 .. include:: explain_-B.rst_
-|
-|   Remember that "x" here is
-|   radial distance and "y" is azimuth. The ylabel may be used to plot a figure caption.
-|   The scale bar length is determined by the radial gridline spacing.
+    :start-after: **Syntax**
+    :end-before: **Description**
 
 .. _-C:
 
 **-C**\ *cpt*
-    Give a CPT. The r-value for each sector is used to
+    Give a CPT. The *r*-value for each sector is used to
     look-up the sector color.  Cannot be used with a rose diagram.
     If modern mode and no argument is given then we select the current CPT.
 
@@ -66,7 +63,9 @@ Optional Arguments
 .. _-F:
 
 **-F**
-    Do not draw the scale length bar [Default plots scale in lower right corner]
+    Do *not* draw the scale length bar [Default plots scale bar in lower right corner
+    provided **-B** is used. We use :term:`MAP_TICK_PEN_PRIMARY` to draw the scale and
+    label it with :term:`FONT_ANNOT_PRIMARY`].
 
 .. _-G:
 
@@ -94,7 +93,7 @@ Optional Arguments
     full-circle plot the default is WEST,EAST,SOUTH,NORTH and for
     half-circle the default is 90W,90E,-,0. A - in any entry disables
     that label. Use **-L** with no argument to disable all four labels.
-    Note that the GMT_LANGUAGE setting will affect the words used.
+    Note that the :term:`GMT_LANGUAGE` setting will affect the words used.
 
 .. _-M:
 
@@ -105,6 +104,19 @@ Optional Arguments
     given and the current plot mode is to draw a windrose diagram then
     using **-M** will add vector heads to all individual directions
     using the supplied attributes.
+
+.. _-N:
+
+**-N**\ *mode*\ [**+p**\ *pen*]
+    Draw the equivalent circular normal distribution, i.e., the *von Mises*
+    distribution; append desired pen [0.25p,black].
+    The *mode* selects which central location and scale to use:
+
+    * 0 = mean and standard deviation;
+    * 1 = median and L1 scale (1.4826 \* median absolute deviation; MAD);
+    * 2 = LMS (least median of squares) mode and scale.
+
+    **Note**: At the present time, only *mode* == 0 is supported.
 
 .. _-Q:
 
@@ -118,16 +130,18 @@ Optional Arguments
 
 .. _-R:
 
-**-R**\ *r0*/*r1*/*az\_0*/*az\_1*
-    Specifies the 'region' of interest in (r,azimuth) space. r0 is 0, r1
+**-R**\ *r0*/*r1*/*az0*/*az1*
+    Specifies the 'region' of interest in (*r*\ ,\ *azimuth*) space. Here, *r0* is 0, *r1*
     is max length in units. For azimuth, specify either -90/90 or 0/180
     for half circle plot or 0/360 for full circle.
 
 .. _-S:
 
-**-S**
+**-S**\ [**+a**]
     Normalize input radii (or bin counts if **-A** is used) by the largest
-    value so all radii (or bin counts) range from 0 to 1.
+    value so all radii (or bin counts) range from 0 to 1.  Optionally,
+    further normalize rose plots for area (i.e., take :math:`sqrt(r)` before
+    plotting [Default is no normalizations].
 
 .. _-T:
 
@@ -137,14 +151,15 @@ Optional Arguments
     compensate by counting each record twice: First as *azimuth* and second
     as *azimuth + 180*.  Ignored if range is given as -90/90 or 0/180.
 
-.. _-U:
-
+.. |Add_-U| replace:: |Add_-U_links|
 .. include:: explain_-U.rst_
+    :start-after: **Syntax**
+    :end-before: **Description**
 
-.. _-V:
-
-.. |Add_-V| unicode:: 0x20 .. just an invisible code
+.. |Add_-V| replace:: |Add_-V_links|
 .. include:: explain_-V.rst_
+    :start-after: **Syntax**
+    :end-before: **Description**
 
 .. _-W:
 
@@ -153,9 +168,10 @@ Optional Arguments
     outline]. Use **-Wv**\ *pen* to change pen used to draw vector
     (requires **-E**) [Default is same as sector outline].
 
-.. _-X:
-
+.. |Add_-XY| replace:: |Add_-XY_links|
 .. include:: explain_-XY.rst_
+    :start-after: **Syntax**
+    :end-before: **Description**
 
 .. _-Z:
 
@@ -166,8 +182,8 @@ Optional Arguments
     scaling].
 
 **-:**
-    Input file has (azimuth,radius) pairs rather than the expected
-    (radius,azimuth).
+    Input file has (*azimuth,radius*) pairs rather than the expected
+    (*radius,azimuth*).
 
 .. |Add_-bi| replace:: [Default is 2 input columns].
 .. include:: explain_-bi.rst_
@@ -189,6 +205,8 @@ Optional Arguments
 .. include:: explain_-qi.rst_
 
 .. include:: explain_-t.rst_
+
+.. include:: explain_-w.rst_
 
 .. include:: explain_help.rst_
 

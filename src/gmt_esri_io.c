@@ -1,6 +1,6 @@
 /*--------------------------------------------------------------------
  *
- *	Copyright (c) 1991-2020 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
+ *	Copyright (c) 1991-2021 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
  *	See LICENSE.TXT file for copying and redistribution conditions.
  *
  *	This program is free software; you can redistribute it and/or modify
@@ -74,7 +74,7 @@ GMT_LOCAL int gmtesriio_write_info (struct GMT_CTRL *GMT, FILE *fp, struct GMT_G
 
 GMT_LOCAL int gmtesriio_read_info_hdr (struct GMT_CTRL *GMT, struct GMT_GRID_HEADER *header) {
 	/* Parse the contents of a .HDR file */
-	int nB;
+	int nB, error;
 	char record[GMT_BUFSIZ];
 	FILE *fp = NULL;
 	struct GMT_GRID_HEADER_HIDDEN *HH = gmt_get_H_hidden (header);
@@ -167,14 +167,15 @@ GMT_LOCAL int gmtesriio_read_info_hdr (struct GMT_CTRL *GMT, struct GMT_GRID_HEA
 	header->wesn[XHI] = header->wesn[XLO] + (header->n_columns - 1 + header->registration) * header->inc[GMT_X];
 	header->wesn[YLO] = header->wesn[YHI] - (header->n_rows - 1 + header->registration) * header->inc[GMT_Y];
 
-	gmt_M_err_fail (GMT, gmt_grd_RI_verify (GMT, header, 1), HH->name);
+	if ((error = gmt_M_err_fail (GMT, gmt_grd_RI_verify (GMT, header, 1), HH->name)))
+		return error;
 
 	return (GMT_NOERROR);
 }
 
 GMT_LOCAL int gmtesriio_read_info (struct GMT_CTRL *GMT, FILE *fp, struct GMT_GRID_HEADER *header) {
 	/* Note: fp is an open file pointer passed in; it will be closed upstream and not here */
-	int c;
+	int c, error;
 	char record[GMT_BUFSIZ];
 	FILE *fp2 = NULL, *fpBAK = NULL;
 	struct GMT_GRID_HEADER_HIDDEN *HH = gmt_get_H_hidden (header);
@@ -258,7 +259,6 @@ GMT_LOCAL int gmtesriio_read_info (struct GMT_CTRL *GMT, FILE *fp, struct GMT_GR
 	}
 	else if ((HH->flags[0] == 'L' || HH->flags[0] == 'B') && HH->flags[1] == '2') {	/* A Arc/Info BINARY file */
 		if ((fp2 = gmt_fopen (GMT, header->title, "r")) == NULL) {
-			gmt_fclose (GMT, fp);
 			return (GMT_GRDIO_OPEN_FAILED);
 		}
 		/* To use the same parsing header code as in the ASCII file case where header and data are in the
@@ -271,21 +271,18 @@ GMT_LOCAL int gmtesriio_read_info (struct GMT_CTRL *GMT, FILE *fp, struct GMT_GR
 	if (sscanf (record, "%*s %d", &header->n_columns) != 1) {
 		GMT_Report (GMT->parent, GMT_MSG_ERROR, "Arc/Info ASCII Grid: Error decoding ncols record\n");
 		if (fpBAK) gmt_fclose (GMT, fp2);
-		gmt_fclose (GMT, fp);
 		return (GMT_GRDIO_READ_FAILED);
 	}
 	gmt_fgets (GMT, record, GMT_BUFSIZ, fp);
 	if (sscanf (record, "%*s %d", &header->n_rows) != 1) {
 		GMT_Report (GMT->parent, GMT_MSG_ERROR, "Arc/Info ASCII Grid: Error decoding nrows record\n");
 		if (fpBAK) gmt_fclose (GMT, fp2);
-		gmt_fclose (GMT, fp);
 		return (GMT_GRDIO_READ_FAILED);
 	}
 	gmt_fgets (GMT, record, GMT_BUFSIZ, fp);
 	if (sscanf (record, "%*s %lf", &header->wesn[XLO]) != 1) {
 		GMT_Report (GMT->parent, GMT_MSG_ERROR, "Arc/Info ASCII Grid: Error decoding xll record\n");
 		if (fpBAK) gmt_fclose (GMT, fp2);
-		gmt_fclose (GMT, fp);
 		return (GMT_GRDIO_READ_FAILED);
 	}
 	gmt_str_tolower (record);
@@ -294,7 +291,6 @@ GMT_LOCAL int gmtesriio_read_info (struct GMT_CTRL *GMT, FILE *fp, struct GMT_GR
 	if (sscanf (record, "%*s %lf", &header->wesn[YLO]) != 1) {
 		GMT_Report (GMT->parent, GMT_MSG_ERROR, "Arc/Info ASCII Grid: Error decoding yll record\n");
 		if (fpBAK) gmt_fclose (GMT, fp2);
-		gmt_fclose (GMT, fp);
 		return (GMT_GRDIO_READ_FAILED);
 	}
 	gmt_str_tolower (record);
@@ -303,7 +299,6 @@ GMT_LOCAL int gmtesriio_read_info (struct GMT_CTRL *GMT, FILE *fp, struct GMT_GR
 	if (sscanf (record, "%*s %lf", &header->inc[GMT_X]) != 1) {
 		GMT_Report (GMT->parent, GMT_MSG_ERROR, "Arc/Info ASCII Grid: Error decoding cellsize record\n");
 		if (fpBAK) gmt_fclose (GMT, fp2);
-		gmt_fclose (GMT, fp);
 		return (GMT_GRDIO_READ_FAILED);
 	}
 	/* Handle the optional nodata_value record */
@@ -326,7 +321,8 @@ GMT_LOCAL int gmtesriio_read_info (struct GMT_CTRL *GMT, FILE *fp, struct GMT_GR
 	header->wesn[XHI] = header->wesn[XLO] + (header->n_columns - 1 + header->registration) * header->inc[GMT_X];
 	header->wesn[YHI] = header->wesn[YLO] + (header->n_rows - 1 + header->registration) * header->inc[GMT_Y];
 
-	gmt_M_err_fail (GMT, gmt_grd_RI_verify (GMT, header, 1), HH->name);
+	if ((error = gmt_M_err_fail (GMT, gmt_grd_RI_verify (GMT, header, 1), HH->name)))
+		return error;
 
 	if (fpBAK) {		/* Case of Arc/Info binary file with a separate header file. We still have things to do. */
 		char tmp[16];
@@ -354,14 +350,14 @@ GMT_LOCAL int gmtesriio_read_info (struct GMT_CTRL *GMT, FILE *fp, struct GMT_GR
 int gmtlib_is_esri_grid (struct GMT_CTRL *GMT, struct GMT_GRID_HEADER *header) {
 	/* Determine if file is an ESRI Interchange ASCII file */
 	FILE *fp = NULL;
-	char record[GMT_BUFSIZ];
+	char record[GMT_BUFSIZ] = {""}, *e = NULL;
 	struct GMT_GRID_HEADER_HIDDEN *HH = gmt_get_H_hidden (header);
 
 	if (!strcmp (HH->name, "="))
 		return (GMT_GRDIO_PIPE_CODECHECK);	/* Cannot check on pipes */
+	if ((e = gmt_get_ext (HH->name)) && !strcmp (e, GMT_TILE_EXTENSION_REMOTE)) return (-1);	/* Watch out for .jp2 tiles since they may contain W|E|S|N codes as well and the ESRI check comes before GDAL check*/
 	if ((fp = gmt_fopen (GMT, HH->name, "r")) == NULL)
 		return (GMT_GRDIO_OPEN_FAILED);
-
 	if (fgets (record, GMT_BUFSIZ, fp) == NULL) {	/* Just get first line. Not using gmt_fgets since we may be reading a binary file */
 		gmt_fclose (GMT, fp);
 		return (GMT_GRDIO_OPEN_FAILED);

@@ -1,6 +1,6 @@
 /*--------------------------------------------------------------------
  *
- *	Copyright (c) 1991-2020 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
+ *	Copyright (c) 1991-2021 by the GMT Team (https://www.generic-mapping-tools.org/team.html)
  *	See LICENSE.TXT file for copying and redistribution conditions.
  *
  *	This program is free software; you can redistribute it and/or modify
@@ -36,9 +36,23 @@
 #define THIS_MODULE_PURPOSE	"Block average (x,y,z) data tables by median estimation"
 #define THIS_MODULE_KEYS	"<D{,>D},GG),A->"
 #define THIS_MODULE_NEEDS	"R"
-#define THIS_MODULE_OPTIONS "-:>RVabdefghioqr" GMT_OPT("FH")
+#define THIS_MODULE_OPTIONS "-:>RVabdefghioqrw" GMT_OPT("FH")
 
 #include "block_subs.h"
+
+static struct GMT_KEYWORD_DICTIONARY module_kw[] = { /* Local options for all the block* modules */
+	/* separator, short_option, long_option, short_directives, long_directives, short_modifiers, long_modifiers */
+	{ 0, 'A', "fields", "", "", "", "" },
+	{ 0, 'C', "center", "", "", "", "" },
+	{ 0, 'E', "extend", "b,r,s", "box-whisker,record,source", "l,h", "lower,higher" },
+	{ 0, 'G', "gridfile", "", "", "", "" },
+	GMT_INCREMENT_KW,	/* Defined in gmt_constant.h since not a true GMT common option (but almost) */
+	{ 0, 'Q', "quicker", "", "", "", "" },
+	{ 0, 'S', "select", "m,n,s,w", "mean,count,sum,weight", "", "" },
+	{ 0, 'T', "quantile", "", "", "", "" },
+	{ 0, 'W', "weights", "i,o", "in,out", "s", "sigma" },
+	{ 0, '\0', "", "", "", "", ""}	/* End of list marked with empty option and strings */
+};
 
 /* Note: For external calls to block* we do not allow explicit -G options; these should be added by examining -A which
  * is required for external calls to make grids, even if just z is requested.  This differs from the command line where
@@ -52,8 +66,8 @@ static int usage (struct GMTAPI_CTRL *API, int level) {
 		GMT_Message (API, GMT_TIME_NONE, "\t[-A<fields>] [-C] [-E[b]] [-Er|s[+l|h]] [-Q] [-T<q>] [%s] [-W[i][o][+s]]\n", GMT_V_OPT);
 	else
 		GMT_Message (API, GMT_TIME_NONE, "\t[-A<fields>] [-C] [-E[b]] [-Er|s[+l|h]] [-G<grdfile>] [-Q] [-T<q>] [%s] [-W[i][o][+s]]\n", GMT_V_OPT);
-	GMT_Message (API, GMT_TIME_NONE, "\t[%s] [%s] [%s] [%s] [%s]\n\t[%s] [%s]\n\t[%s] [%s] [%s] [%s] [%s]\n\n",
-		GMT_a_OPT, GMT_b_OPT, GMT_d_OPT, GMT_e_OPT, GMT_f_OPT, GMT_h_OPT, GMT_i_OPT, GMT_o_OPT, GMT_q_OPT, GMT_r_OPT, GMT_colon_OPT, GMT_PAR_OPT);
+	GMT_Message (API, GMT_TIME_NONE, "\t[%s] [%s] [%s] [%s] [%s]\n\t[%s] [%s]\n\t[%s] [%s] [%s] [%s]\n\t[%s] [%s]\n\n",
+		GMT_a_OPT, GMT_b_OPT, GMT_d_OPT, GMT_e_OPT, GMT_f_OPT, GMT_h_OPT, GMT_i_OPT, GMT_o_OPT, GMT_q_OPT, GMT_r_OPT, GMT_w_OPT, GMT_colon_OPT, GMT_PAR_OPT);
 
 	if (level == GMT_SYNOPSIS) return (GMT_MODULE_SYNOPSIS);
 
@@ -87,7 +101,7 @@ static int usage (struct GMTAPI_CTRL *API, int level) {
 	GMT_Message (API, GMT_TIME_NONE, "\t     Append +s read/write standard deviations instead, with w = 1/s.\n");
 	GMT_Option (API, "a,bi");
 	if (gmt_M_showusage (API)) GMT_Message (API, GMT_TIME_NONE, "\t   Default is 3 columns (or 4 if -W is set).\n");
-	GMT_Option (API, "bo,d,e,f,h,i,o,q,r,:,.");
+	GMT_Option (API, "bo,d,e,f,h,i,o,q,r,w,:,.");
 
 	return (GMT_MODULE_USAGE);
 }
@@ -108,7 +122,7 @@ static int parse (struct GMT_CTRL *GMT, struct BLOCKMEDIAN_CTRL *Ctrl, struct GM
 		switch (opt->option) {
 
 			case '<':	/* Skip input files */
-				if (!gmt_check_filearg (GMT, '<', opt->arg, GMT_IN, GMT_IS_DATASET)) n_errors++;
+				if (GMT_Get_FilePath (GMT->parent, GMT_IS_DATASET, GMT_IN, GMT_FILE_REMOTE, &(opt->arg))) n_errors++;;
 				break;
 
 			/* Processes program-specific parameters */
@@ -182,14 +196,16 @@ static int parse (struct GMT_CTRL *GMT, struct BLOCKMEDIAN_CTRL *Ctrl, struct GM
 					n_errors++;
 				break;
 			case 'G':	/* Write output grid(s) */
+				Ctrl->G.active = true;
 				if (!GMT->parent->external && Ctrl->G.n) {	/* Command line interface */
 					GMT_Report (GMT->parent, GMT_MSG_ERROR, "-G can only be set once!\n");
 					n_errors++;
 				}
-				else if ((Ctrl->G.active = gmt_check_filearg (GMT, 'G', opt->arg, GMT_OUT, GMT_IS_GRID)) != 0)
-					Ctrl->G.file[Ctrl->G.n++] = strdup (opt->arg);
-				else
-					n_errors++;
+				else {
+					Ctrl->G.file[Ctrl->G.n] = strdup (opt->arg);
+					if (GMT_Get_FilePath (GMT->parent, GMT_IS_GRID, GMT_OUT, GMT_FILE_LOCAL, &(Ctrl->G.file[Ctrl->G.n]))) n_errors++;
+					Ctrl->G.n++;
+				}
 				break;
 			case 'I':	/* Get block dimensions */
 				n_errors += gmt_parse_inc_option (GMT, 'I', opt->arg);
@@ -203,7 +219,7 @@ static int parse (struct GMT_CTRL *GMT, struct BLOCKMEDIAN_CTRL *Ctrl, struct GM
 				break;
 			case 'W':	/* Use in|out weights */
 				Ctrl->W.active = true;
-				if (gmt_validate_modifiers (GMT, opt->arg, 'W', "s")) n_errors++;
+				if (gmt_validate_modifiers (GMT, opt->arg, 'W', "s", GMT_MSG_ERROR)) n_errors++;
 				sigma = (gmt_get_modifier (opt->arg, 's', arg)) ? true : false;
 				switch (arg[0]) {
 					case '\0':
