@@ -170,7 +170,7 @@ static int usage (struct GMTAPI_CTRL *API, int level) {
 	GMT_Message (API, GMT_TIME_NONE, "\t   First 3 columns must have lon, lat (or lat, lon, see -:) and age (Ma).\n");
 	spotter_rot_usage (API, 'E');
 	GMT_Message (API, GMT_TIME_NONE, "\t   Alternatively, specify a single finite rotation (in degrees) to be applied to all input points.\n");
-	GMT_Message (API, GMT_TIME_NONE, "\n\tOPTIONS:\n");
+	GMT_Message (API, GMT_TIME_NONE, "\n  OPTIONAL ARGUMENTS:\n");
 	GMT_Message (API, GMT_TIME_NONE, "\t-A Output tracks for ages (or stages, see -L) between young and old [Default is entire track].\n");
 	GMT_Message (API, GMT_TIME_NONE, "\t   If no limit is given, then each seamount should have their limits in columns 4 and 5 instead.\n");
 	GMT_Message (API, GMT_TIME_NONE, "\t   Only applicable in conjunction with the -L option.\n");
@@ -452,7 +452,9 @@ EXTERN_MSC int GMT_backtracker (void *V_API, int mode, void *args) {
 		if (Ctrl->M.active) {	/* Must convert to stage poles and adjust opening angles */
 			char tmpfile[GMT_LEN32] = {""}, cmd[GMT_LEN128] = {""};
 			sprintf (tmpfile, "gmt_half_rots.%d", (int)getpid());
+			gmt_filename_set (Ctrl->E.rot.file);	/* Replace any spaces in filename with ASCII 29 */
 			sprintf (cmd, "%s -M%g -Fs ->%s", Ctrl->E.rot.file, Ctrl->M.value, tmpfile);
+			gmt_filename_get (Ctrl->E.rot.file);	/* Replace any ASCII 29 with spaces */
 			if (GMT_Call_Module (API, "rotconverter", GMT_MODULE_CMD, cmd) != GMT_NOERROR) {
 				GMT_Report (API, GMT_MSG_ERROR, "Unable to convert %s to half-rates\n", Ctrl->E.rot.file);
 				Return (API->error);

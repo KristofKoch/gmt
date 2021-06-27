@@ -14,10 +14,11 @@ Synopsis
 
 **gmt spatial** [ *table* ] [ |-A|\ [**a**\ *min_dist*][*unit*]]
 [ |-C| ]
-[ |-D|\ [**+f**\ *file*][**+a**\ *amax*][**+d**\ *dmax*][**+c\|C**\ *cmax*][**+s**\ *fact*] ]
+[ |-D|\ [**+a**\ *amax*][**+c\|C**\ *cmax*][**+d**\ *dmax*][**+f**\ *file*][**+p**][**+s**\ *fact*] ]
 [ |-E|\ **+p**\|\ **n** ]
 [ |-F|\ [**l**] ]
 [ |-I|\ [**e**\|\ **i**] ]
+[ -L|\ *dist*\ /*noise*\ /*offset* ]
 [ |-N|\ *pfile*\ [**+a**][**+p**\ *start*][**+r**][**+z**] ]
 [ |-Q|\ [*unit*][**+c**\ *min*\ [/*max*]][**+h**][**+l**][**+p**][**+s**\ [**a**\|\ **d**]] ]
 [ |SYN_OPT-R| ]
@@ -80,7 +81,7 @@ Optional Arguments
 
 .. _-D:
 
-**-D**\ [**+f**\ *file*][**+a**\ *amax*][**+d**\ *dmax*][**+c\|C**\ *cmax*][**+s**\ *fact*]
+**-D**\ [**+a**\ *amax*][**+c\|C**\ *cmax*][**+d**\ *dmax*][**+f**\ *file*][**+p**][**+s**\ *fact*]
     Check for duplicates among the input lines or polygons, or, if
     *file* is given via **+f**, check if the input features already
     exist among the features in *file*. We consider the cases of exact
@@ -125,6 +126,13 @@ Optional Arguments
     Append **i** to only compute internal (i.e., self-intersecting
     polygons) crossovers or **e** to only compute external (i.e.,
     between pairs of polygons) crossovers [Default is both].
+
+.. _-L:
+
+**-L**\ *dist*\ /*noise*\ /*offset*
+    Remove tile Lines.  These are superfluous lines that were digitized with a
+    polygon but that all fall along the rectangular **-R** border and should be removed.
+    Append *dist* (in m) [0], coordinate *noise* [1e-10], and max *offset* from gridlines [1e-10].
 
 .. _-N:
 
@@ -182,7 +190,10 @@ Optional Arguments
     the intersection of polygons (closed), **-Su** which returns the
     union of polygons (closed), **-Ss** which will split polygons that
     straddle the Dateline, and **-Sj** which will join polygons that
-    were split by the Dateline.  **Note**: Only **-Sb**, **-Sh** and **-Ss** have been implemented.
+    were split by the Dateline. **Note1**: Only **-Sb**, **-Sh** and **-Ss** have been implemented.
+    **Note2**: **-Sb** is a purely Cartesian operation so *width* must be in data units.
+    That is, for geographical coordinates *width* must be provided in degrees or, preferably, project data into
+    an equal-area projection, compute the buffer and then convert back to geographical.
 
 .. _-T:
 
